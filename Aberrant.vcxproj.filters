@@ -1,0 +1,172 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Form Files">
+      <UniqueIdentifier>{99349809-55BA-4b9d-BF79-8FDBB0286EB3}</UniqueIdentifier>
+      <Extensions>ui</Extensions>
+    </Filter>
+    <Filter Include="Generated Files">
+      <UniqueIdentifier>{71ED8ED8-ACB9-4CE9-BBE1-E00B30144E11}</UniqueIdentifier>
+      <Extensions>moc;h;cpp</Extensions>
+      <SourceControlFiles>False</SourceControlFiles>
+    </Filter>
+    <Filter Include="Generated Files\Debug">
+      <UniqueIdentifier>{964c9c00-2c4d-4240-b7a6-9d1a5ce62ca7}</UniqueIdentifier>
+      <Extensions>cpp;moc</Extensions>
+      <SourceControlFiles>False</SourceControlFiles>
+    </Filter>
+    <Filter Include="Generated Files\Release">
+      <UniqueIdentifier>{624832c5-ecad-48b2-9590-6937a5a7f0dd}</UniqueIdentifier>
+      <Extensions>cpp;moc</Extensions>
+      <SourceControlFiles>False</SourceControlFiles>
+    </Filter>
+    <Filter Include="FX">
+      <UniqueIdentifier>{79771bf5-0c8f-47d5-91c6-f76ed9779a54}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h</Extensions>
+    </Filter>
+    <Filter Include="Files\Renderer">
+      <UniqueIdentifier>{bc15bf79-c92d-41a5-bc54-5bd1ce0bc80b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Files\Renderer\GL">
+      <UniqueIdentifier>{7f5fdaef-2255-47a5-b7a8-85ff87a691ec}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Files\Renderer\DX">
+      <UniqueIdentifier>{f7a40c2e-5ab2-4408-88b6-70fae91882ff}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Files\Helper">
+      <UniqueIdentifier>{f700f3fb-25bc-4235-bca1-1ef934f462c3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Files\Helper\DX">
+      <UniqueIdentifier>{be41c50c-2924-42c2-a614-abd09c2efa68}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Files\Geometry">
+      <UniqueIdentifier>{79432505-1f3b-4b70-ad0f-608aaa3d53b9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Files\Pacman">
+      <UniqueIdentifier>{a2ae0561-b031-425f-859d-ace1d7759194}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Files\Camera">
+      <UniqueIdentifier>{33b6cdc4-adbc-4e0a-95f8-1302b740d64c}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="root\Forms\mainwindow.ui">
+      <Filter>Form Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="DXWidget.h">
+      <Filter>Files\Renderer\DX</Filter>
+    </CustomBuild>
+    <CustomBuild Include="GLWidget.h">
+      <Filter>Files\Renderer\GL</Filter>
+    </CustomBuild>
+    <CustomBuild Include="MainWindow.h">
+      <Filter>Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="FX\Basic.fx">
+      <Filter>FX</Filter>
+    </CustomBuild>
+    <CustomBuild Include="FX\LightHelper.fx">
+      <Filter>FX</Filter>
+    </CustomBuild>
+    <CustomBuild Include="FX\BuildShadowMap.fx">
+      <Filter>FX</Filter>
+    </CustomBuild>
+    <CustomBuild Include="FX\Sky.fx">
+      <Filter>FX</Filter>
+    </CustomBuild>
+    <CustomBuild Include="FX\ShowTexture.fx">
+      <Filter>FX</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="GeneratedFiles\Debug\moc_GLWidget.cpp">
+      <Filter>Generated Files\Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_GLWidget.cpp">
+      <Filter>Generated Files\Release</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Debug\moc_MainWindow.cpp">
+      <Filter>Generated Files\Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_MainWindow.cpp">
+      <Filter>Generated Files\Release</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Debug\moc_DXWidget.cpp">
+      <Filter>Generated Files\Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_DXWidget.cpp">
+      <Filter>Generated Files\Release</Filter>
+    </ClCompile>
+    <ClCompile Include="DXRenderer.cpp">
+      <Filter>Files\Renderer\DX</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="GeneratedFiles\ui_mainwindow.h">
+      <Filter>Generated Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Camera.h">
+      <Filter>Files\Camera</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryGenerator.h">
+      <Filter>Files\Geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="Cube.h">
+      <Filter>Files\Renderer\GL</Filter>
+    </ClInclude>
+    <ClInclude Include="DXRenderer.h">
+      <Filter>Files\Renderer\DX</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer.h">
+      <Filter>Files\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Terrain.h">
+      <Filter>Files\Geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="GameTimer.h">
+      <Filter>Files\Helper</Filter>
+    </ClInclude>
+    <ClInclude Include="Maze.h">
+      <Filter>Files\Pacman</Filter>
+    </ClInclude>
+    <ClInclude Include="GameEntity.h">
+      <Filter>Files\Pacman</Filter>
+    </ClInclude>
+    <ClInclude Include="Game.h">
+      <Filter>Files\Pacman</Filter>
+    </ClInclude>
+    <ClInclude Include="Util.h">
+      <Filter>Files\Helper</Filter>
+    </ClInclude>
+    <ClInclude Include="Effects.h">
+      <Filter>Files\Helper\DX</Filter>
+    </ClInclude>
+    <ClInclude Include="LightHelper.h">
+      <Filter>Files\Helper\DX</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderStates.h">
+      <Filter>Files\Helper\DX</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderManager.h">
+      <Filter>Files\Helper\DX</Filter>
+    </ClInclude>
+    <ClInclude Include="DXDrawManager.h">
+      <Filter>Files\Renderer\DX</Filter>
+    </ClInclude>
+    <ClInclude Include="ShadowMap.h">
+      <Filter>Files\Helper\DX</Filter>
+    </ClInclude>
+    <ClInclude Include="Sky.h">
+      <Filter>Files\Geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="MathUtil.h">
+      <Filter>Files\Helper\DX</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

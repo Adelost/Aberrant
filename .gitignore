@@ -1,0 +1,9 @@
+# Ignore everything:
+Debug/
+GeneratedFiles/
+Release/
+root/
+Textures/
+FX/Output/
+*.cod
+*.dll
