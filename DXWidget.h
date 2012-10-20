@@ -54,6 +54,7 @@ public:
 	void renderFrame()
 	{
 		timer.tick();
+		calcFPS();
 		renderer->update(timer.getDeltaTime());
 		renderer->renderFrame();
 	};
@@ -149,6 +150,36 @@ private:
 
 		return TwMouseButton(action, button);
 	};
+	void calcFPS()
+	{
+		static int nrOfFrames = 0;
+		static float timeElapsed = 0.0f;
+		nrOfFrames++;
+
+		//Compute averages over one second period.
+		if((timer.getTotalTime()-timeElapsed) >= 1.0f)
+		{
+			float fps = (float)nrOfFrames; // fps = frameCnt / 1
+			float ms_pf = 1000.0f/fps;
+
+			std::wostringstream outs;   
+			outs.precision(6);
+			outs << L"fps: " << fps << L"    " 
+				<< L"Frame Time: " << ms_pf << L" (ms)";
+
+			// QString stats = "FPS: ";
+			QString stats;
+			stats = "FPS:  %1  Frame Time:  %2 (ms)";
+			stats = stats.arg(fps).arg(ms_pf);
+
+			//Send signal
+			emit signal_fpsChanged(stats);
+
+			// Reset for next average.
+			nrOfFrames = 0;
+			timeElapsed += 1.0f;
+		}
+	}
 
 public slots:
 	void slot_mouseMove(int dx, int dy)
@@ -170,6 +201,7 @@ public slots:
 signals:
 	void signal_mouseScroll(int dx);
 	void signal_mouseMove(int dx, int dy);
+	void signal_fpsChanged(QString value);
 };
 
 #endif

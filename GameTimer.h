@@ -46,6 +46,18 @@ public:
 	{
 		return (float)deltaTime;
 	};
+	float getTotalTime()
+	{
+		// Do not count time passed since stopped.
+		if(int_StopTime)
+		{
+			return (float)(((int_StopTime - int_PausedTime)-int_BaseTime)*secondsPerCount);
+		}
+		else
+		{
+			return (float)(((int_CurrTime-int_PausedTime)-int_BaseTime)*secondsPerCount);
+		}
+	}
 
 	void reset()
 	{
@@ -82,6 +94,7 @@ public:
 			Stopped  = true;
 		}
 	};
+	
 	void tick()
 	{
 		//Ignore

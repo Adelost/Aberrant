@@ -413,7 +413,6 @@ technique11 Light1
     }
 }
 
-
 technique11 Tess1
 {
     pass P0

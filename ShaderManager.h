@@ -39,12 +39,6 @@ private:
 		layout_posNormTex = 0;
 		layout_posNormTexTan = 0;
 	}
-	~ShaderManager()
-	{
-		ReleaseCOM(layout_pos);
-		ReleaseCOM(layout_posNormTex);
-		ReleaseCOM(layout_posNormTexTan);
-	}
 	void createLayout(ID3D11Device* device, D3D11_INPUT_ELEMENT_DESC *desc_inputElement, UINT numElements, ID3D11InputLayout **layout, ID3DX11EffectTechnique *technique)
 	{
 		// Create the input layout
@@ -66,6 +60,15 @@ public:
 		static ShaderManager instance;
 		return &instance;
 	};
+	~ShaderManager()
+	{
+		ReleaseCOM(layout_pos);
+		ReleaseCOM(layout_posNormTex);
+		ReleaseCOM(layout_posNormTexTan);
+		effects.~Effects();
+		states.~RenderStates();
+	}
+	
 
 	void init(ID3D11Device* device)
 	{

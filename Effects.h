@@ -319,7 +319,10 @@ public:
 	}
 	~Effects()
 	{
-		destroy();
+		SafeDelete(fx_standard);
+		SafeDelete(fx_buildShadowMap);
+		SafeDelete(fx_skybox);
+		SafeDelete(fx_showTexture);
 	}
 	
 	void init(ID3D11Device* device)
@@ -331,7 +334,7 @@ public:
 	}
 	void recompile(ID3D11Device* device)
 	{
-		destroy();
+		this->~Effects(); // reset states
 		fx_standard = new FXStandard(device, L"FX/Basic.fx");
 		fx_buildShadowMap = new FXBuildShadowMap(device, L"FX/BuildShadowMap.fx");
 		fx_skybox = new FXSkybox(device, L"FX/Sky.fx");
@@ -339,13 +342,6 @@ public:
 	}
 
 private:
-	void destroy()
-	{
-		SafeDelete(fx_standard);
-		SafeDelete(fx_buildShadowMap);
-		SafeDelete(fx_skybox);
-		SafeDelete(fx_showTexture);
-	}
 };
 #pragma endregion
 

@@ -3,6 +3,7 @@
 
 //Qt includes
 #include <QMainWindow>
+#include <QTime>
 #include <QTimer> // needed to implement framrate
 #include <QMouseEvent> // needed to grabb mouse input
 
@@ -19,25 +20,28 @@ class MainWindow : public QMainWindow
 	Q_OBJECT
 
 public:
-	//Mainwindow
+	// Mainwindow
 	MainWindow(QWidget *parent = 0, Qt::WFlags flags = 0) : QMainWindow(parent, flags)
 	{
-		//Create UI generated from XML file
+		// Create UI generated from XML file
 		ui.setupUi(this);
+		this->setWindowTitle("Aberrant");
 		resize(800,600);
 
-		//Connect functionality with buttons
+		// Connect functionality with buttons
 		connect(ui.actionDirectX, SIGNAL(toggled(bool)), this, SLOT(createDXWidget(bool)));
 		connect(ui.actionOpenGL, SIGNAL(toggled(bool)), this, SLOT(createGLWidget(bool)));
-		connect(ui.actionFullScreen, SIGNAL(toggled(bool)), this, SLOT(fullScreen(bool)));
+		connect(ui.actionCapFPS, SIGNAL(toggled(bool)), this, SLOT(toggleCapFPS(bool)));
+		connect(ui.actionFullScreen, SIGNAL(toggled(bool)), this, SLOT(toggleFullScreen(bool)));
 		connect(ui.quit, SIGNAL(triggered()), this, SLOT(close()));
 
-		//Create updatetimer; limit framerate to 5 ms (200 fps)
+		// Create updatetimer; limit framerate to 5 ms (200 fps)
 		updateTimer = new QTimer(this);
 		connect(updateTimer, SIGNAL(timeout()), this, SLOT(gameLoop()));
 	
-		//Create dxwidget
+		// Create dxwidget
 		ui.actionDirectX->setChecked(true);
+		ui.actionCapFPS->setChecked(true);
 	};
 	~MainWindow()
 	{
@@ -73,35 +77,36 @@ protected:
 	 };
 
 public slots:
-	//Puts custom DXWidget in Qt mainwindow
+	// Puts custom DXWidget in Qt mainwindow
 	void createDXWidget(bool isChecked)
 	{
 		if(isChecked)
 		{
-			//Disable OpenGL
+			// Disable OpenGL
 			ui.actionOpenGL->setEnabled(false);
 
-			//Create DirectX
+			// Create DirectX
 			renderWidget = new DXWidget(this);
 			if(renderer)
 			{
 				//Connect to mainwindow
 				this->setCentralWidget(renderWidget);
 				renderer = dynamic_cast<Renderer*>(renderWidget);
+				connect(renderWidget, SIGNAL(signal_fpsChanged(QString)), this, SLOT(setTitle(QString)));
 
 				//Start timer
-				updateTimer->start(5);
+				updateTimer->start();
 			}
 		}
 		else
 		{
-			//Stop timer
+			// Stop timer
 			updateTimer->stop();
 
-			//Delete DirectX
+			// Delete DirectX
 			delete renderWidget;
 
-			//Enable OpenGL
+			// Enable OpenGL
 			ui.actionOpenGL->setEnabled(true);
 		}
 	};
@@ -109,7 +114,7 @@ public slots:
 	{
 		if(isChecked)
 		{
-			//Disable DirectX
+			// Disable DirectX
 			ui.actionDirectX->setEnabled(false);
 
 			// Specify an OpenGL 3.3 format using the Core profile.
@@ -123,52 +128,66 @@ public slots:
 			renderWidget = new GLWidget(glFormat, this);
 			if(renderer)
 			{
-				//Connect to mainwindow
+				// Connect to mainwindow
 				this->setCentralWidget(renderWidget);
 				renderer = dynamic_cast<Renderer*>(renderWidget);
 
-				//Connect input with GLWidget
+				// Connect input with GLWidget
 				connect(this, SIGNAL(signal_mouseMove(int, int)), renderWidget, SLOT(slot_mouseMove(int, int)));
 				connect(this, SIGNAL(signal_mouseScroll(int)), renderWidget, SLOT(slot_mouseScroll(int)));
 
-				//Start timer
-				updateTimer->start(0);
+				// Start timer
+				updateTimer->start();
 			}
 		}
 		else
 		{
-			//Stop timer
+			// Stop timer
 			updateTimer->stop();
 
-			//Remove widget
+			// Remove widget
 			delete renderWidget;
 
-			//Enable DX
+			// Enable DX
 			ui.actionDirectX->setEnabled(true);
 		}
 	};
 
-	//Set mainwindow to fullscreen
-	void fullScreen(bool isChecked)
+	// Set mainwindow to fullscreen
+	void toggleFullScreen(bool isChecked)
 	{
 		if(isChecked)
 		{
-			this->showFullScreen();
 			ui.mainToolBar->hide();
+			this->showFullScreen();
+			
 		}
 		else
 		{
-			this->showNormal();
 			ui.mainToolBar->show();
+			this->showNormal();
+		}
+	};
+	void toggleCapFPS(bool isChecked)
+	{
+		if(isChecked)
+		{
+			updateTimer->setInterval(5);
+		}
+		else
+		{
+			updateTimer->setInterval(0);
 		}
 	};
 	void gameLoop()
 	{
-		//Render frame
-		dynamic_cast<Renderer*>(renderWidget)->renderFrame();
-		//renderer->renderFrame();
+		// Render frame
+		renderer->renderFrame();
 	};
-
+	void setTitle(QString title)
+	{
+		this->setWindowTitle("Aberrant " + title);
+	};
 };
 
 #endif // MAINWINDOW_H

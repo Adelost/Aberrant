@@ -43,6 +43,7 @@ DXRenderer::~DXRenderer()
 	delete drawManager;
 	delete mSky;
 	SafeDelete(mSmap);
+	shaderManager->~ShaderManager();
 
 	// Terminate tweakbar
 	TwTerminate();
@@ -408,14 +409,14 @@ void DXRenderer::update(float dt)
 
 void DXRenderer::renderFrame()
 {
-	mSmap->BindDsvAndSetNullRenderTarget(dxDeviceContext);
-	DrawSceneToShadowMap();
-	dxDeviceContext->RSSetState(0);
+	//mSmap->BindDsvAndSetNullRenderTarget(dxDeviceContext);
+	//DrawSceneToShadowMap();
+	//dxDeviceContext->RSSetState(0);
 
-	// Restore the back and depth buffer to the OM stage.
-	ID3D11RenderTargetView* renderTargets[1] = {view_renderTarget};
-	dxDeviceContext->OMSetRenderTargets(1, renderTargets, view_depthStencil);
-	dxDeviceContext->RSSetViewports(1, &viewport_screen);
+	//// Restore the back and depth buffer to the OM stage.
+	//ID3D11RenderTargetView* renderTargets[1] = {view_renderTarget};
+	//dxDeviceContext->OMSetRenderTargets(1, renderTargets, view_depthStencil);
+	//dxDeviceContext->RSSetViewports(1, &viewport_screen);
 
 	// Clear render target & depth/stencil
 	dxDeviceContext->ClearRenderTargetView(view_renderTarget, reinterpret_cast<const float*>(&Colors::DeepBlue));
@@ -435,6 +436,7 @@ void DXRenderer::renderFrame()
 	fx->SetMaxTessFactor(tess_maxTessFactor);
 
 	dxDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST);
+	//dxDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	drawManager->prepareFrame();
 
@@ -488,28 +490,28 @@ void DXRenderer::drawGame(UINT pass)
 {
 	XMMATRIX viewProj = mCam.ViewProj();
 
-	// Draw land
+	//// Draw land
 	drawManager->drawObject(1, 0, XMMatrixIdentity(), viewProj, pass);
 
-	//Draw maze
-	for(int y = 0; y<pacman.maze->getSizeY(); y++)
-	{
-		for(int x = 0; x<pacman.maze->getSizeX(); x++)
-		{
-			XMMATRIX world = (XMMATRIX)pacman.maze->getPosition(x,y);
-			XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(1.0f));
+	////Draw maze
+	//for(int y = 0; y<pacman.maze->getSizeY(); y++)
+	//{
+	//	for(int x = 0; x<pacman.maze->getSizeX(); x++)
+	//	{
+	//		XMMATRIX world = (XMMATRIX)pacman.maze->getPosition(x,y);
+	//		XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(1.0f));
 
-			/*if(pacman.maze->getTile(x,y)==1)
-			{
-			drawManager->drawObject(0, 1, scale*world, viewProj, pass);
-			}
-			if(pacman.maze->getTile(x,y)==0)
-			{
-			scale = XMMatrixScalingFromVector(XMVectorReplicate(0.1f));
-			drawManager->drawObject(0, 1, scale*world, viewProj, pass);
-			}*/
-		}
-	}
+	//		if(pacman.maze->getTile(x,y)==1)
+	//		{
+	//		drawManager->drawObject(0, 1, scale*world, viewProj, pass);
+	//		}
+	//		if(pacman.maze->getTile(x,y)==0)
+	//		{
+	//		scale = XMMatrixScalingFromVector(XMVectorReplicate(0.1f));
+	//		drawManager->drawObject(0, 1, scale*world, viewProj, pass);
+	//		}
+	//	}
+	//}
 
 	//Draw game entities
 	XMMATRIX world = (XMMATRIX)pacman.entity->getPos();
@@ -551,30 +553,30 @@ void DXRenderer::DrawSceneToShadowMap()
 		// Draw land
 		drawManager->drawObject_shadowMap(1, 0, XMMatrixIdentity(), viewProj, pass);
 
-		//Draw maze
-		for(int y = 0; y<pacman.maze->getSizeY(); y++)
-		{
-			for(int x = 0; x<pacman.maze->getSizeX(); x++)
-			{
-				XMMATRIX world = (XMMATRIX)pacman.maze->getPosition(x,y);
-				XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(1.0f));
+		////Draw maze
+		//for(int y = 0; y<pacman.maze->getSizeY(); y++)
+		//{
+		//	for(int x = 0; x<pacman.maze->getSizeX(); x++)
+		//	{
+		//		XMMATRIX world = (XMMATRIX)pacman.maze->getPosition(x,y);
+		//		XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(1.0f));
 
-				if(pacman.maze->getTile(x,y)==1)
-				{
-					drawManager->drawObject_shadowMap(0, 1, scale*world, viewProj, pass);
-				}
-				if(pacman.maze->getTile(x,y)==0)
-				{
-					scale = XMMatrixScalingFromVector(XMVectorReplicate(0.1f));
-					drawManager->drawObject_shadowMap(0, 1, scale*world, viewProj, pass);
-				}
-			}
-		}
+		//		if(pacman.maze->getTile(x,y)==1)
+		//		{
+		//			drawManager->drawObject_shadowMap(0, 1, scale*world, viewProj, pass);
+		//		}
+		//		if(pacman.maze->getTile(x,y)==0)
+		//		{
+		//			scale = XMMatrixScalingFromVector(XMVectorReplicate(0.1f));
+		//			drawManager->drawObject_shadowMap(0, 1, scale*world, viewProj, pass);
+		//		}
+		//	}
+		//}
 
-		// Draw game entities
-		XMMATRIX world = (XMMATRIX)pacman.entity->getPos();
-		XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(0.7f));
-		drawManager->drawObject_shadowMap(0, 2, scale*world, viewProj, pass);
+		//// Draw game entities
+		//XMMATRIX world = (XMMATRIX)pacman.entity->getPos();
+		//XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(0.7f));
+		//drawManager->drawObject_shadowMap(0, 2, scale*world, viewProj, pass);
 	}
 }
 
