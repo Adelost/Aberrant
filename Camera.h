@@ -44,7 +44,7 @@ public:
 		mRight = XMFLOAT3(1.0f, 0.0f, 0.0f);
 		mUp = XMFLOAT3(0.0f, 1.0f, 0.0f);
 		mLook = XMFLOAT3(0.0f, -1.0f, 0.0f);
-		walkingSpeed = 1.0f;
+		walkingSpeed = 3.0f;
 	};
 	~Camera(){};
 

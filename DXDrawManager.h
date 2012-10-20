@@ -53,6 +53,8 @@ private:
 	D3D11_VIEWPORT mCubeMapViewport;
 	static const int CubeMapSize = 256;
 
+	ID3D11ShaderResourceView* mStoneNormalTexSRV;
+
 protected:
 public:
 	XMFLOAT4X4 mLightView;
@@ -78,6 +80,7 @@ public:
 		mDynamicCubeMapSRV = 0;
 		for(int i=0; i<6; i++)
 			mDynamicCubeMapRTV[i] = 0;
+		mStoneNormalTexSRV = 0;
 
 
 		// Init light
@@ -156,7 +159,7 @@ public:
 			materials.push_back(mBoxMat);
 		}
 
-		XMMATRIX grassTexScale = XMMatrixScaling(5.0f, 5.0f, 0.0f);
+		XMMATRIX grassTexScale = XMMatrixScaling(1.0f, 1.0f, 1.0f);
 		XMStoreFloat4x4(&mGrassTexTransform, grassTexScale);
 
 		mSceneBounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
@@ -181,6 +184,8 @@ public:
 		ReleaseCOM(mDynamicCubeMapSRV);
 		for(int i = 0; i < 6; ++i)
 			ReleaseCOM(mDynamicCubeMapRTV[i]);
+
+		ReleaseCOM(mStoneNormalTexSRV);
 	};
 
 	float getHillHeight( float x, float z )
@@ -206,7 +211,10 @@ public:
 			L"Textures/grass.dds", 0, 0, &mGrassMapSRV, 0 ));
 
 		HR(D3DX11CreateShaderResourceViewFromFile(dxDevice, 
-			L"Textures/water2.dds", 0, 0, &mWavesMapSRV, 0 ));
+			L"Textures/stones.dds", 0, 0, &mWavesMapSRV, 0 ));
+
+		HR(D3DX11CreateShaderResourceViewFromFile(dxDevice, 
+			L"Textures/stones_nmap.dds", 0, 0, &mStoneNormalTexSRV, 0 ));
 
 		GeometryGenerator::MeshData box;
 		GeometryGenerator::MeshData grid;
@@ -215,7 +223,7 @@ public:
 		GeometryGenerator geoGen;
 		geoGen.CreateBox(1.0f, 1.0f, 1.0f, box);
 		geoGen.CreateSphere(0.5f, 20, 20, sphere);
-		geoGen.CreateGrid(160.0f, 160.0f, 100, 100, grid);
+		geoGen.CreateGrid(160.0f, 160.0f, 50, 50, grid);
 
 		vertexOffsets.push_back(0);
 		vertexOffsets.push_back(box.Vertices.size());
@@ -242,13 +250,14 @@ public:
 		// Extract the vertex elements we are interested and apply the height function to
 		// each vertex.  
 		//
-		std::vector<Vertex::posNormTex> vertices(totalVertexCount);
+		std::vector<Vertex::posNormTexTan> vertices(totalVertexCount);
 		UINT k = 0;
 		for(size_t i = 0; i < box.Vertices.size(); ++i, ++k)
 		{
 			vertices[k].Pos    = box.Vertices[i].Position;
 			vertices[k].Normal = box.Vertices[i].Normal;
 			vertices[k].Tex = box.Vertices[i].TexC;
+			vertices[k].TangentU = box.Vertices[i].TangentU;
 		}
 
 		for(size_t i = 0; i < grid.Vertices.size(); ++i, ++k)
@@ -258,6 +267,7 @@ public:
 			vertices[k].Pos    = p;
 			vertices[k].Normal = getHillNormal(p.x, p.z);
 			vertices[k].Tex = grid.Vertices[i].TexC;
+			vertices[k].TangentU = grid.Vertices[i].TangentU;
 		}
 
 		for(size_t i = 0; i < sphere.Vertices.size(); ++i, ++k)
@@ -265,11 +275,12 @@ public:
 			vertices[k].Pos    = sphere.Vertices[i].Position;
 			vertices[k].Normal = sphere.Vertices[i].Normal;
 			vertices[k].Tex = sphere.Vertices[i].TexC;
+			vertices[k].TangentU = sphere.Vertices[i].TangentU;
 		}
 
 		D3D11_BUFFER_DESC vbd;
 		vbd.Usage = D3D11_USAGE_IMMUTABLE;
-		vbd.ByteWidth = sizeof(Vertex::posNormTex) * totalVertexCount;
+		vbd.ByteWidth = sizeof(Vertex::posNormTexTan) * totalVertexCount;
 		vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		vbd.CPUAccessFlags = 0;
 		vbd.MiscFlags = 0;
@@ -346,7 +357,7 @@ public:
 	{
 		// Only the first "main" light casts a shadow.
 		XMVECTOR lightDir = XMLoadFloat3(&mDirLight.Direction);
-		XMVECTOR lightPos = -2.0f*mSceneBounds.Radius*lightDir;
+		XMVECTOR lightPos = -20.0f*mSceneBounds.Radius*lightDir;
 		XMVECTOR targetPos = XMLoadFloat3(&mSceneBounds.Center);
 		XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
@@ -380,21 +391,19 @@ public:
 	}
 	void prepareFrame()
 	{
-		// Set input layout, topology, context
-		dxDeviceContext->IASetInputLayout(shaderManager->layout_posNormTex);
-		dxDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		
-		UINT stride = sizeof(Vertex::posNormTex);
-		UINT offset = 0;
-		dxDeviceContext->IASetVertexBuffers(0, 1, &mShapesVB, &stride, &offset);
-		dxDeviceContext->IASetIndexBuffer(mShapesIB, DXGI_FORMAT_R32_UINT, 0);
-
 		// Set per frame constants.
 		fx = shaderManager->effects.fx_standard;
 		fx->SetDirLights(&mDirLight);
 		fx->SetPointLights(&mPointLight);
 		fx->SetSpotLights(&mSpotLight);
-		fx->SetDiffuseMap(mWavesMapSRV);
+
+		UINT stride = sizeof(Vertex::posNormTexTan);
+		UINT offset = 0;
+		
+		// Set input layout, topology, context
+		dxDeviceContext->IASetInputLayout(shaderManager->layout_posNormTexTan);
+		dxDeviceContext->IASetVertexBuffers(0, 1, &mShapesVB, &stride, &offset);
+		dxDeviceContext->IASetIndexBuffer(mShapesIB, DXGI_FORMAT_R32_UINT, 0);
 	}
 	void prepareFrame_shadowMap()
 	{
@@ -402,7 +411,7 @@ public:
 		dxDeviceContext->IASetInputLayout(shaderManager->layout_posNormTex);
 		dxDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-		UINT stride = sizeof(Vertex::posNormTex);
+		UINT stride = sizeof(Vertex::posNormTexTan);
 		UINT offset = 0;
 		dxDeviceContext->IASetVertexBuffers(0, 1, &mShapesVB, &stride, &offset);
 		dxDeviceContext->IASetIndexBuffer(mShapesIB, DXGI_FORMAT_R32_UINT, 0);
@@ -426,12 +435,19 @@ public:
 		XMMATRIX worldViewProj = world*viewProj;
 
 		fx->SetWorld(world);
+		fx->SetViewProj(viewProj);
 		fx->SetWorldViewProj(worldViewProj);
-		fx->SetMaterial(materials[id_material]);
-		fx->SetTexTransform(XMLoadFloat4x4(&mGrassTexTransform));
-		fx->SetShadowTransform(world*XMLoadFloat4x4(&mShadowTransform));
 
-		fx->tech_light1->GetPassByIndex(passNr)->Apply(0, dxDeviceContext);
+		// Note: No world pre-multiply for displacement mapping since the DS computes the world
+		// space position, we just need the light view/proj.
+		fx->SetShadowTransform(XMLoadFloat4x4(&mShadowTransform));
+		fx->SetTexTransform(XMLoadFloat4x4(&mGrassTexTransform));
+		fx->SetMaterial(materials[id_material]);
+		fx->SetDiffuseMap(mWavesMapSRV);
+		fx->SetNormalMap(mStoneNormalTexSRV);
+		
+		
+		fx->tech_tess->GetPassByIndex(passNr)->Apply(0, dxDeviceContext);
 		dxDeviceContext->DrawIndexed(indexCounts[id_object], indexOffsets[id_object], vertexOffsets[id_object]);
 	}
 

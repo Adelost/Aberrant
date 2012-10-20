@@ -16,9 +16,15 @@ DXRenderer::DXRenderer()
 	// DX settings
 	msaa_quality = 0;
 	msaa_enable = true;
-	wireframe_enable = false;
+	wireframe_enable = true;
 	clientWidth = 800;
 	clientHeight = 600;
+
+	tess_heightScale = 10.7f;
+	tess_maxTessDistance = 5.0f;
+	tess_minTessDistance = 20.0f;
+	tess_minTessFactor = 1.0f;
+	tess_maxTessFactor = 1.0f;
 }
 
 DXRenderer::~DXRenderer()
@@ -50,7 +56,7 @@ void DXRenderer::init(HWND winId )
 	shaderManager = ShaderManager::getInstance();
 	shaderManager->init(dxDevice);
 	drawManager = new DXDrawManager(dxDevice, dxDeviceContext);
-	mSky = new Sky(dxDevice, L"Textures/Skyboxes/snowcube1024.dds", 5000.0f);
+	mSky = new Sky(dxDevice, L"Textures/Skyboxes/grasscube1024.dds", 5000.0f);
 	mSmap = new ShadowMap(dxDevice, SMapSize, SMapSize);
 
 	// Init tweakbar
@@ -62,6 +68,12 @@ void DXRenderer::init(HWND winId )
 	buildMenu();
 }
 
+void TW_CALL tw_recompileShaders(void *clientData)
+{ 
+	DXRenderer *in = static_cast<DXRenderer *>(clientData); // scene pointer is stored in clientData
+	in->recompileShaders();                            
+}
+
 void DXRenderer::buildMenu()
 {
 	// Create menu in renderer
@@ -70,7 +82,9 @@ void DXRenderer::buildMenu()
 
 	// Display
 	TwAddVarRW(menu, "Wire frame", TW_TYPE_BOOLCPP, &wireframe_enable, "group=Display");
+	TwAddButton(menu, "Recompile shaders", tw_recompileShaders, this, "group=Display");
 	TwDefine("Settings/Display opened=false");
+	TwAddSeparator(menu, NULL, NULL);
 
 	//// Lights
 	//TwAddVarRW(menu, "DirAmbient", TW_TYPE_COLOR4F, &mDirLight.Ambient, "group='Dir light'");
@@ -114,9 +128,19 @@ void DXRenderer::buildMenu()
 	//TwDefine("Settings/'Maze Material' group='Materials'");
 	//TwDefine("Settings/Materials opened=false");
 
+	// Tessellation
+	TwAddVarRW(menu, "tess_heightScale", TW_TYPE_FLOAT, &tess_heightScale, "group='Tessellation' step=0.01f");
+	TwAddVarRW(menu, "tess_maxTessDistance", TW_TYPE_FLOAT, &tess_maxTessDistance, "group='Tessellation' step=0.1f");
+	TwAddVarRW(menu, "tess_minTessDistance", TW_TYPE_FLOAT, &tess_minTessDistance, "group='Tessellation' step=0.1f");
+	TwAddVarRW(menu, "tess_minTessFactor", TW_TYPE_FLOAT, &tess_minTessFactor, "group='Tessellation' step=0.1f");
+	TwAddVarRW(menu, "tess_maxTessFactor", TW_TYPE_FLOAT, &tess_maxTessFactor, "group='Tessellation' step=0.1f");
+	TwDefine("Settings/Tessellation opened=false");
+
 	// Init menu in entities
 	drawManager->buildMenu(menu);
 	mCam.buildMenu(menu);
+
+	TwAddSeparator(menu, NULL, NULL);
 	pacman.entity->buildMenu(menu);
 	pacman.maze->buildMenu(menu);
 	
@@ -387,8 +411,8 @@ void DXRenderer::renderFrame()
 	mSmap->BindDsvAndSetNullRenderTarget(dxDeviceContext);
 	DrawSceneToShadowMap();
 	dxDeviceContext->RSSetState(0);
-	// Restore the back and depth buffer to the OM stage.
 
+	// Restore the back and depth buffer to the OM stage.
 	ID3D11RenderTargetView* renderTargets[1] = {view_renderTarget};
 	dxDeviceContext->OMSetRenderTargets(1, renderTargets, view_depthStencil);
 	dxDeviceContext->RSSetViewports(1, &viewport_screen);
@@ -396,16 +420,30 @@ void DXRenderer::renderFrame()
 	// Clear render target & depth/stencil
 	dxDeviceContext->ClearRenderTargetView(view_renderTarget, reinterpret_cast<const float*>(&Colors::DeepBlue));
 	dxDeviceContext->ClearDepthStencilView(view_depthStencil, D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL, 1.0f, 0);
-	drawManager->prepareFrame();
 
 	// Set per frame constants.
 	FXStandard* fx = shaderManager->effects.fx_standard;
 	fx->SetEyePosW(mCam.GetPosition());
-	fx->SetShadowMap(mSmap->DepthMapSRV());
 	fx->SetCubeMap(mSky->CubeMapSRV());
+	fx->SetShadowMap(mSmap->DepthMapSRV());
+
+	// Tessellation settings
+	fx->SetHeightScale(tess_heightScale);
+	fx->SetMaxTessDistance(tess_maxTessDistance);
+	fx->SetMinTessDistance(tess_minTessDistance);
+	fx->SetMinTessFactor(tess_minTessFactor);
+	fx->SetMaxTessFactor(tess_maxTessFactor);
+
+	dxDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST);
+
+	drawManager->prepareFrame();
+
+	if(wireframe_enable)
+		dxDeviceContext->RSSetState(shaderManager->states.WireframeRS);
+
 
 	// Draw
-	ID3DX11EffectTechnique* tech = fx->tech_light1;
+	ID3DX11EffectTechnique* tech = fx->tech_tess;
 	D3DX11_TECHNIQUE_DESC techDesc;
 	tech->GetDesc(&techDesc);
 	for(UINT pass = 0; pass < techDesc.Passes; pass++)
@@ -413,11 +451,20 @@ void DXRenderer::renderFrame()
 		drawGame(pass);
 	}
 
+	dxDeviceContext->RSSetState(0);
+
+	// FX sets tessellation stages, but it does not disable them.  So do that here
+	// to turn off tessellation.
+	dxDeviceContext->HSSetShader(0, 0, 0);
+	dxDeviceContext->DSSetShader(0, 0, 0);
+	dxDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
 	// Debug view depth buffer.
 	if( GetAsyncKeyState('Z') & 0x8000 )
 	{
 		DrawScreenQuad(mSmap->DepthMapSRV());
 	}
+
 
 	mSky->Draw(dxDeviceContext, &mCam);
 
@@ -452,15 +499,15 @@ void DXRenderer::drawGame(UINT pass)
 			XMMATRIX world = (XMMATRIX)pacman.maze->getPosition(x,y);
 			XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(1.0f));
 
-			if(pacman.maze->getTile(x,y)==1)
+			/*if(pacman.maze->getTile(x,y)==1)
 			{
-				drawManager->drawObject(0, 1, scale*world, viewProj, pass);
+			drawManager->drawObject(0, 1, scale*world, viewProj, pass);
 			}
 			if(pacman.maze->getTile(x,y)==0)
 			{
-				scale = XMMatrixScalingFromVector(XMVectorReplicate(0.1f));
-				drawManager->drawObject(0, 1, scale*world, viewProj, pass);
-			}
+			scale = XMMatrixScalingFromVector(XMVectorReplicate(0.1f));
+			drawManager->drawObject(0, 1, scale*world, viewProj, pass);
+			}*/
 		}
 	}
 

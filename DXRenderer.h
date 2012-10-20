@@ -43,19 +43,30 @@ private:
 	DXDrawManager *drawManager;
 	Sky* mSky;
 
+	float tess_heightScale;
+	float tess_maxTessDistance;
+	float tess_minTessDistance;
+	float tess_minTessFactor;
+	float tess_maxTessFactor;
+
 public:
 	Camera mCam;
 
 protected:
+private:
+	void initDX();
+	void resizeDX();
+	void buildMenu();
 public:
 	DXRenderer();
 	~DXRenderer();
 	void init(HWND winId);
-	void initDX();
-	void buildMenu();
-
 	void onResize(int width, int height);
-	void resizeDX();
+	void recompileShaders()
+	{
+		shaderManager->effects.recompile(dxDevice);
+	}
+
 	float getAspectRatio();
 
 	void initGameEntities();

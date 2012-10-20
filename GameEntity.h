@@ -168,7 +168,8 @@ public:
 		TwAddVarRW(menu, "Pacman speed", TW_TYPE_FLOAT, &speed, "group=Entities");
 		TwAddVarRW(menu, "Turning speed", TW_TYPE_FLOAT, &turningSpeed, "group=Entities");
 		TwAddVarRW(menu, "Pacman Rotation", TW_TYPE_QUAT4F, &qua_rot_tween, "opened=false axisz=-z group=Entities");
-		TwDefine("Settings/Entities group='Game'");
+		TwDefine("Settings/Entities group='Game' ");
+		TwDefine("Settings/Game opened=false");
 	};
 };
 #endif
