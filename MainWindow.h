@@ -26,7 +26,7 @@ public:
 		// Create UI generated from XML file
 		ui.setupUi(this);
 		this->setWindowTitle("Aberrant");
-		resize(800,600);
+		resize(800, 600);
 
 		// Connect functionality with buttons
 		connect(ui.actionDirectX, SIGNAL(toggled(bool)), this, SLOT(createDXWidget(bool)));
@@ -35,7 +35,7 @@ public:
 		connect(ui.actionFullScreen, SIGNAL(toggled(bool)), this, SLOT(toggleFullScreen(bool)));
 		connect(ui.quit, SIGNAL(triggered()), this, SLOT(close()));
 
-		// Create updatetimer; limit framerate to 5 ms (200 fps)
+		// Create updatetimer
 		updateTimer = new QTimer(this);
 		connect(updateTimer, SIGNAL(timeout()), this, SLOT(gameLoop()));
 	
@@ -172,7 +172,7 @@ public slots:
 	{
 		if(isChecked)
 		{
-			updateTimer->setInterval(5);
+			updateTimer->setInterval(10);
 		}
 		else
 		{

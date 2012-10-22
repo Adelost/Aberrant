@@ -166,7 +166,7 @@
       <Filter>Files\Geometry</Filter>
     </ClInclude>
     <ClInclude Include="MathUtil.h">
-      <Filter>Files\Helper\DX</Filter>
+      <Filter>Files\Helper</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

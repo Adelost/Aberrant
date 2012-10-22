@@ -27,8 +27,6 @@ private:
 	FXStandard* fx;
 	bool wireframe_enable;
 
-	Terrain mTerrain;
-
 	DirectionalLight mDirLight;
 	PointLight mPointLight;
 	SpotLight mSpotLight;
@@ -95,7 +93,7 @@ public:
 		mPointLight.Specular = XMFLOAT4(0.7f, 0.7f, 0.7f, 1.0f);
 		mPointLight.Att      = XMFLOAT3(0.0f, 0.1f, 0.0f);
 		mPointLight.Position = XMFLOAT3(0.0f, 3.0f, 3.0f);
-		mPointLight.Range    = 25.0f;
+		mPointLight.Range    = 250.0f;
 
 		// Spot light--position and direction changed every frame to animate in UpdateScene function.
 		mSpotLight.Ambient  = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -167,8 +165,6 @@ public:
 
 		buildGeometry();
 		buildScreenQuadGeometry();
-
-		mTerrain.Init(dxDevice, dxDeviceContext);
 	};
 	~DXDrawManager()
 	{
@@ -409,7 +405,7 @@ public:
 	{
 		// Set input layout, topology, context
 		dxDeviceContext->IASetInputLayout(shaderManager->layout_posNormTex);
-		dxDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		dxDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST);
 
 		UINT stride = sizeof(Vertex::posNormTexTan);
 		UINT offset = 0;
@@ -425,9 +421,11 @@ public:
 		fx->SetWorldInvTranspose(Util::InverseTranspose(world));
 		fx->SetWorldViewProj(worldViewProj);
 		fx->SetTexTransform(XMLoadFloat4x4(&mGrassTexTransform));
+		fx->SetDiffuseMap(mWavesMapSRV);
+		fx->SetNormalMap(mStoneNormalTexSRV);
 
 		dxDeviceContext->RSSetState(shaderManager->states.NoCullRS);
-		fx->BuildShadowMapTech->GetPassByIndex(passNr)->Apply(0, dxDeviceContext);
+		fx->TessBuildShadowMapTech->GetPassByIndex(passNr)->Apply(0, dxDeviceContext);
 		dxDeviceContext->DrawIndexed(indexCounts[id_object], indexOffsets[id_object], vertexOffsets[id_object]);
 	}
 	void drawObject(int id_object, int id_material, CXMMATRIX world, CXMMATRIX viewProj, UINT passNr)

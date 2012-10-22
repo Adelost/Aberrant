@@ -4,11 +4,11 @@
 #include "Util.h"
 #include "LightHelper.h"
 #include "ShaderManager.h"
+#include "Camera.h"
 
 #include <fstream>
 #include <sstream>
 
-class Camera;
 struct DirectionalLight;
 
 class Terrain
@@ -16,60 +16,67 @@ class Terrain
 public:
 	struct InitInfo
 	{
-		std::wstring HeightMapFilename;
-		std::wstring LayerMapFilename0;
-		std::wstring LayerMapFilename1;
-		std::wstring LayerMapFilename2;
-		std::wstring LayerMapFilename3;
-		std::wstring LayerMapFilename4;
-		std::wstring BlendMapFilename;
-		float HeightScale;
-		UINT HeightmapWidth;
-		UINT HeightmapHeight;
-		float CellSpacing;
+		std::wstring path_heightMap;
+		std::wstring path_layer0;
+		std::wstring path_layer1;
+		std::wstring path_layer2;
+		std::wstring path_layer3;
+		std::wstring path_layer4;
+		std::wstring path_blendMap;
+		float heightScale;
+		float cellScale;
+		UINT size_heightmap_x;
+		UINT size_heightmap_y;
+		UINT cellsPerPatch_dim;
 	};
 
 private:
-	// Divide heightmap into patches such that each patch has CellsPerPatch cells
-	// and CellsPerPatch+1 vertices.  Use 64 so that if we tessellate all the way 
+	// Divide heightmap into patches such that each patch has num_cellsPerPatch cells
+	// and num_cellsPerPatch+1 vertices.  Use 64 so that if we tessellate all the way 
 	// to 64, we use all the data from the heightmap.  
-	static const int CellsPerPatch = 64;
 
-	ID3D11Buffer* mQuadPatchVB;
-	ID3D11Buffer* mQuadPatchIB;
+	ID3D11Buffer* vbuff_patches;
+	ID3D11Buffer* ibuff_patches;
 
-	ID3D11ShaderResourceView* mLayerMapArraySRV;
-	ID3D11ShaderResourceView* mBlendMapSRV;
-	ID3D11ShaderResourceView* mHeightMapSRV;
+	ID3D11ShaderResourceView* view_layersArray; 
+	ID3D11ShaderResourceView* view_blendMap;
+	ID3D11ShaderResourceView* view_heightMap;
 
-	InitInfo mInfo;
-
-	UINT mNumPatchVertices;
-	UINT mNumPatchQuadFaces;
-
-	UINT mNumPatchVertRows;
-	UINT mNumPatchVertCols;
+	//InitInfo info;
 
 	XMFLOAT4X4 mWorld;
 
 	Material mMat;
 
-	std::vector<XMFLOAT2> mPatchBoundsY;
-	std::vector<float> mHeightmap;
+	// Height grid
+	UINT num_vertex_x;
+	UINT num_vertex_y;
+	UINT num_cells_x;
+	UINT num_cells_y;
+	DynamicArray2D heightmap;
+	float cellScale;
+
+	// Patch grid
+	UINT num_patchVertex_total;
+	UINT num_patchCells_total;
+	UINT cellsPerPatch_dim;
+	UINT num_cellsPerPatch;
+	UINT num_patchCells_x;
+	UINT num_patchCells_y;
+	UINT num_patchVertex_x;
+	UINT num_patchVertex_y;
+	std::vector<XMFLOAT2> heightmap_patchHeights;
 
 public:
 	Terrain()
 	{
-		mQuadPatchVB = 0;
-		mQuadPatchIB = 0; 
-		mLayerMapArraySRV = 0; 
-		mBlendMapSRV = 0;
-		mHeightMapSRV = 0;
-		mNumPatchVertices = 0;
-		mNumPatchQuadFaces = 0;
-		mNumPatchVertRows = 0;
-		mNumPatchVertCols = 0;
+		vbuff_patches = 0;
+		ibuff_patches = 0; 
+		view_layersArray = 0; 
+		view_blendMap = 0;
+		view_heightMap = 0;
 
+		// Init attributes
 		XMStoreFloat4x4(&mWorld, XMMatrixIdentity());
 		mMat.Ambient  = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 		mMat.Diffuse  = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
@@ -78,233 +85,290 @@ public:
 	};
 	~Terrain()
 	{
-		ReleaseCOM(mQuadPatchVB);
-		ReleaseCOM(mQuadPatchIB);
-		ReleaseCOM(mLayerMapArraySRV);
-		ReleaseCOM(mBlendMapSRV);
-		ReleaseCOM(mHeightMapSRV);
+		ReleaseCOM(vbuff_patches);
+		ReleaseCOM(ibuff_patches);
+		ReleaseCOM(view_layersArray);
+		ReleaseCOM(view_blendMap);
+		ReleaseCOM(view_heightMap);
 	};
 
-	float GetWidth()
+	float getSize_x()
 	{
-		// Total terrain width.
-		return (mInfo.HeightmapWidth-1)*mInfo.CellSpacing;
+		return num_cells_x*cellScale;
 	}
-	float GetDepth()
+	float getSize_y()
 	{
-		// Total terrain depth.
-		return (mInfo.HeightmapHeight-1)*mInfo.CellSpacing;
+		return num_cells_y*cellScale;
 	}
-	float GetHeight(float x, float z);
 
-	XMMATRIX GetWorld()const;
-	void SetWorld(CXMMATRIX M);
-
-	void Init(ID3D11Device* device, ID3D11DeviceContext* dc)
+	void init(ID3D11Device* device, ID3D11DeviceContext* context)
 	{
-		Terrain::InitInfo tii;
-		tii.HeightMapFilename = L"Textures/Terrain/terrain.raw";
-		tii.LayerMapFilename0 = L"Textures/Terrain/grass.dds";
-		tii.LayerMapFilename1 = L"Textures/Terrain/darkdirt.dds";
-		tii.LayerMapFilename2 = L"Textures/Terrain/stone.dds";
-		tii.LayerMapFilename3 = L"Textures/Terrain/lightdirt.dds";
-		tii.LayerMapFilename4 = L"Textures/Terrain/snow.dds";
-		tii.BlendMapFilename = L"Textures/Terrain/blend.dds";
-		tii.HeightScale = 50.0f;
-		tii.HeightmapWidth = 2049;
-		tii.HeightmapHeight = 2049;
-		tii.CellSpacing = 0.5f;
+		Terrain::InitInfo info;
+		info.path_heightMap = L"Textures/Terrain/terrain.raw";
+		info.path_layer0 = L"Textures/Terrain/grass.dds";
+		info.path_layer1 = L"Textures/Terrain/darkdirt.dds";
+		info.path_layer2 = L"Textures/Terrain/stone.dds";
+		info.path_layer3 = L"Textures/Terrain/lightdirt.dds";
+		info.path_layer4 = L"Textures/Terrain/snow.dds";
+		info.path_blendMap = L"Textures/Terrain/blend.dds";
+		info.heightScale = 50.0f;
+		info.cellScale = 0.5f;
+		info.size_heightmap_x = 2049;
+		info.size_heightmap_y = 2049;
+		info.cellsPerPatch_dim = 6;
 
-		mInfo = tii;
+		// Divide heightmap into patches of size "num_cellsPerPatch" cells
+		cellScale = info.cellScale;
+		num_vertex_x = info.size_heightmap_x;
+		num_vertex_y = info.size_heightmap_y;
+		// Note: adding +1 to cells gives us number of vertices in one dimension and vice versa
+		num_cells_x = num_vertex_x - 1;
+		num_cells_y = num_vertex_y - 1;
+		
+		// calc maximum patch size
+		int max_numCellsPerPatch = MathUtil::gcd(num_cells_x, num_cells_y);
+		// calc specified patch size -- 2^cellsPerPatch_dim
+		cellsPerPatch_dim = info.cellsPerPatch_dim;
+		num_cellsPerPatch = 1 << cellsPerPatch_dim;
+		// trim if necessary
+		if(num_cellsPerPatch > max_numCellsPerPatch)
+			num_cellsPerPatch = max_numCellsPerPatch;
 
-		// Divide heightmap into patches such that each patch has CellsPerPatch.
-		mNumPatchVertRows = ((mInfo.HeightmapHeight-1) / CellsPerPatch) + 1;
-		mNumPatchVertCols = ((mInfo.HeightmapWidth-1) / CellsPerPatch) + 1;
+		num_patchCells_x = num_cells_x/num_cellsPerPatch;
+		num_patchCells_y = num_cells_y/num_cellsPerPatch;
+		num_patchVertex_x = num_patchCells_x + 1;
+		num_patchVertex_y = num_patchCells_y + 1;
 
-		mNumPatchVertices  = mNumPatchVertRows*mNumPatchVertCols;
-		mNumPatchQuadFaces = (mNumPatchVertRows-1)*(mNumPatchVertCols-1);
+		num_patchVertex_total  = num_patchVertex_x*num_patchVertex_y;
+		num_patchCells_total = num_patchCells_x*num_patchCells_y;
 
-		LoadHeightmap();
-		Smooth();
-		CalcAllPatchBoundsY();
+		// Create heightmap
+		loadHeightmap(info.path_heightMap, info.heightScale);
+		heightmap.smooth();
+		calc_patchHeights();
 
-		BuildQuadPatchVB(device);
-		BuildQuadPatchIB(device);
-		BuildHeightmapSRV(device);
+		buildQuadPatchVB(device);
+		buildQuadPatchIB(device);
+		buildHeightmapSRV(device);
 
+		// Create texture array of blendmaps
 		std::vector<std::wstring> layerFilenames;
-		layerFilenames.push_back(mInfo.LayerMapFilename0);
-		layerFilenames.push_back(mInfo.LayerMapFilename1);
-		layerFilenames.push_back(mInfo.LayerMapFilename2);
-		layerFilenames.push_back(mInfo.LayerMapFilename3);
-		layerFilenames.push_back(mInfo.LayerMapFilename4);
-		mLayerMapArraySRV = DXUtil::CreateTexture2DArraySRV(device, dc, layerFilenames);
+		layerFilenames.push_back(info.path_layer0);
+		layerFilenames.push_back(info.path_layer1);
+		layerFilenames.push_back(info.path_layer2);
+		layerFilenames.push_back(info.path_layer3);
+		layerFilenames.push_back(info.path_layer4);
+		view_layersArray = DXUtil::create_view_texArray(device, 
+			context, layerFilenames);
 
-		HR(D3DX11CreateShaderResourceViewFromFile(device, 
-			mInfo.BlendMapFilename.c_str(), 0, 0, &mBlendMapSRV, 0));
+		HR(D3DX11CreateShaderResourceViewFromFile(device,
+			info.path_blendMap.c_str(), 0, 0, &view_blendMap, 0));
 	}
 
-	void Draw(ID3D11DeviceContext* dc, const Camera& cam)
+	void draw(ID3D11DeviceContext* dc, Camera *cam)
 	{
+		ShaderManager* sm = ShaderManager::getInstance();
+		dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST);
+		dc->IASetInputLayout(sm->layout_posTexBoundY);
+		
 
+		UINT stride = sizeof(Vertex::posTexBondsY);
+		UINT offset = 0;
+		dc->IASetVertexBuffers(0, 1, &vbuff_patches, &stride, &offset);
+		dc->IASetIndexBuffer(ibuff_patches, DXGI_FORMAT_R16_UINT, 0);
+
+		XMMATRIX viewProj = cam->ViewProj();
+		XMMATRIX world  = XMLoadFloat4x4(&mWorld);
+		XMMATRIX worldViewProj = world*viewProj;
+
+		// Convert frustum into  6 planes
+		XMFLOAT4 worldPlanes[6];
+		Util::extractFrustumPlanes(worldPlanes, viewProj);
+
+		// Set per frame constants.
+		FXStandard* fx = sm->effects.fx_standard;
+		fx->SetViewProj(viewProj);
+		fx->SetEyePosW(cam->GetPosition());
+	
+		fx->SetMinTessDistance(20.0f);
+		fx->SetMaxTessDistance(500.0f);
+		fx->SetMinTessFactor(0.0f);
+		fx->SetMaxTessFactor(cellsPerPatch_dim);
+
+		fx->SetTexelCellSpaceU(1.0f / num_vertex_x);
+		fx->SetTexelCellSpaceV(1.0f / num_vertex_y);
+		fx->SetWorldCellSpace(cellScale);
+		fx->SetWorldFrustumPlanes(worldPlanes);
+
+		fx->SetLayerMapArray(view_layersArray);
+		fx->SetBlendMap(view_blendMap);
+		fx->SetHeightMap(view_heightMap);
+
+		fx->SetMaterial(mMat);
+
+		ID3DX11EffectTechnique* tech = sm->effects.fx_standard->tech_terrain;
+		D3DX11_TECHNIQUE_DESC techDesc;
+		tech->GetDesc( &techDesc );
+
+		for(UINT i = 0; i < techDesc.Passes; ++i)
+		{
+			ID3DX11EffectPass* pass = tech->GetPassByIndex(i);
+			pass->Apply(0, dc);
+
+			dc->DrawIndexed(num_patchCells_total*4, 0, 0);
+		}	
+
+		// FX sets tessellation stages, but it does not disable them.  So do that here
+		// to turn off tessellation.
+		dc->HSSetShader(0, 0, 0);
+		dc->DSSetShader(0, 0, 0);
 	}
+	float getTerrainHeight(float x, float z)
+	{
+		// Transform from terrain local space to "cell" space.
+		float c = (x + 0.5f*getSize_x()) /  cellScale;
+		float d = (z - 0.5f*getSize_y()) / -cellScale;
+
+		// Get the row and column we are in.
+		int row = (int)floorf(d);
+		int col = (int)floorf(c);
+
+		// Grab the heights of the cell we are in.
+		// A*--*B
+		//  | /|
+		//  |/ |
+		// C*--*D
+
+		float A = heightmap.safe_get(col, row);
+		float B = heightmap.safe_get(col+1, row);
+		float C = heightmap.safe_get(col, row+1);
+		float D = heightmap.safe_get(col+1, row+1);
+
+		// Where we are relative to the cell.
+		float s = c - (float)col;
+		float t = d - (float)row;
+
+		// If upper triangle ABC.
+		if( s + t <= 1.0f)
+		{
+			float uy = B - A;
+			float vy = C - A;
+			return A + s*uy + t*vy;
+		}
+		else // lower triangle DCB.
+		{
+			float uy = C - D;
+			float vy = B - D;
+			return D + (1.0f-s)*uy + (1.0f-t)*vy;
+		}
+	}
+
+	void buildMenu(TwBar* menu)
+	{
+		/*TwAddVarRW(menu, "Walking speed", TW_TYPE_FLOAT, &walkingSpeed, "group=Camera");
+		TwAddVarRW(menu, "Position", TW_TYPE_DIR3F, &mPosition, "group=Camera");
+		TwAddVarRW(menu, "Direction", TW_TYPE_DIR3F, &mLook, "group=Camera");
+		TwDefine("Settings/Camera opened=false");*/
+	};
 
 private:
-	void LoadHeightmap()
+	void loadHeightmap(std::wstring path, float heightScale)
 	{
-		// A height for each vertex
-		std::vector<unsigned char> in( mInfo.HeightmapWidth * mInfo.HeightmapHeight );
-
-		// Open the file.
+		// Read bytes from RAW file
+		std::vector<unsigned char> byte_array(num_vertex_x * num_vertex_y);
 		std::ifstream inFile;
-		inFile.open(mInfo.HeightMapFilename.c_str(), std::ios_base::binary);
-
+		inFile.open(path.c_str(), std::ios_base::binary);
 		if(inFile)
 		{
-			// Read the RAW bytes.
-			inFile.read((char*)&in[0], (std::streamsize)in.size());
-
-			// Done with file.
+			inFile.read((char*)&byte_array[0], (std::streamsize)byte_array.size());
 			inFile.close();
 		}
 
 		// Copy the array data into a float array and scale it.
-		mHeightmap.resize(mInfo.HeightmapHeight * mInfo.HeightmapWidth, 0);
-		for(UINT i = 0; i < mInfo.HeightmapHeight * mInfo.HeightmapWidth; ++i)
+		heightmap.resize(num_vertex_x, num_vertex_y);
+		for(int i=0; i<heightmap.size_total; i++)
 		{
-			mHeightmap[i] = (in[i] / 255.0f)*mInfo.HeightScale;
+			// convert from byte to float
+			float height = (byte_array[i]/255.0f)*heightScale;
+			heightmap.set(i, height);
 		}
 	};
-	void Smooth()
+	
+	void calc_patchHeights()
 	{
-		std::vector<float> dest( mHeightmap.size() );
-
-		for(UINT i = 0; i < mInfo.HeightmapHeight; ++i)
-		{
-			for(UINT j = 0; j < mInfo.HeightmapWidth; ++j)
-			{
-				dest[i*mInfo.HeightmapWidth+j] = Average(i,j);
-			}
-		}
-
-		// Replace the old heightmap with the filtered one.
-		mHeightmap = dest;
-	}
-	bool InBounds(int i, int j)
-	{
-		// True if ij are valid indices; false otherwise.
-		return 
-			i >= 0 && i < (int)mInfo.HeightmapHeight && 
-			j >= 0 && j < (int)mInfo.HeightmapWidth;
-	}
-	float Average(int i, int j)
-	{
-		// Function computes the average height of the ij element.
-		// It averages itself with its eight neighbor pixels.  Note
-		// that if a pixel is missing neighbor, we just don't include it
-		// in the average--that is, edge pixels don't have a neighbor pixel.
-		//
-		// ----------
-		// | 1| 2| 3|
-		// ----------
-		// |4 |ij| 6|
-		// ----------
-		// | 7| 8| 9|
-		// ----------
-
-		float avg = 0.0f;
-		float num = 0.0f;
-
-		// Use int to allow negatives.  If we use UINT, @ i=0, m=i-1=UINT_MAX
-		// and no iterations of the outer for loop occur.
-		for(int m = i-1; m <= i+1; ++m)
-		{
-			for(int n = j-1; n <= j+1; ++n)
-			{
-				if( InBounds(m,n) )
-				{
-					avg += mHeightmap[m*mInfo.HeightmapWidth + n];
-					num += 1.0f;
-				}
-			}
-		}
-
-		return avg / num;
-	}
-	void CalcAllPatchBoundsY()
-	{
-		mPatchBoundsY.resize(mNumPatchQuadFaces);
+		heightmap_patchHeights.resize(num_patchCells_total);
 
 		// For each patch
-		for(UINT i = 0; i < mNumPatchVertRows-1; ++i)
+		for(UINT y=0; y<num_patchCells_y; y++)
+			for(UINT x=0; x<num_patchCells_x; x++)
+				calc_patchHeights(x, y);
+	}
+	void calc_patchHeights(UINT ix, UINT iy)
+	{
+		//
+		// Compute min max value in each patch
+		//
+
+		// Start/End index for each patch
+		// Note: x0 = start, x1 = end
+		UINT x0 = ix*num_cellsPerPatch;
+		UINT x1 = (ix+1)*num_cellsPerPatch;
+		UINT y0 = iy*num_cellsPerPatch;
+		UINT y1 = (iy+1)*num_cellsPerPatch;
+
+		float min_heigh = +FLT_MAX;
+		float max_heigh = -FLT_MAX;
+		for(UINT y=y0; y<=y1; y++)
 		{
-			for(UINT j = 0; j < mNumPatchVertCols-1; ++j)
+			for(UINT x=x0; x<=x1; x++)
 			{
-				CalcPatchBoundsY(i, j);
+				float height = heightmap.get(x,y);
+				min_heigh = MathUtil::Min(min_heigh, height);
+				max_heigh = MathUtil::Max(max_heigh, height);
 			}
 		}
+
+		int index = ix+iy*num_patchCells_x;
+		heightmap_patchHeights[index] = XMFLOAT2(min_heigh, max_heigh);
 	}
-	void CalcPatchBoundsY(UINT i, UINT j)
+	void buildQuadPatchVB(ID3D11Device* device)
 	{
-		// Scan the heightmap values this patch covers and compute the min/max height.
+		std::vector<Vertex::posTexBondsY> patchVertices(num_patchVertex_total);
 
-		UINT x0 = j*CellsPerPatch;
-		UINT x1 = (j+1)*CellsPerPatch;
-
-		UINT y0 = i*CellsPerPatch;
-		UINT y1 = (i+1)*CellsPerPatch;
-
-		float minY = +FLT_MAX;
-		float maxY = -FLT_MAX;
-		for(UINT y = y0; y <= y1; ++y)
+		// Calc position and texture-cords
+		float halfSize_x = 0.5f*getSize_x();
+		float halfSize_y = 0.5f*getSize_y();
+		float size_patchCell_x = getSize_x() / num_patchCells_x;
+		float size_patchCell_y = getSize_y() / num_patchCells_y;
+		float du = 1.0f / num_patchCells_x;
+		float dv = 1.0f / num_patchCells_y;
+		for(int y=0; y<num_patchVertex_y; y++)
 		{
-			for(UINT x = x0; x <= x1; ++x)
+			// Y-position -- we invert axis because image is inverted
+			float pos_y = - y*size_patchCell_y + halfSize_y;
+			for(int x=0; x<num_patchVertex_x; x++)
 			{
-				UINT k = y*mInfo.HeightmapWidth + x;
-				minY = MathUtil::Min(minY, mHeightmap[k]);
-				maxY = MathUtil::Max(maxY, mHeightmap[k]);
-			}
-		}
-
-		UINT patchID = i*(mNumPatchVertCols-1)+j;
-		mPatchBoundsY[patchID] = XMFLOAT2(minY, maxY);
-	}
-	void BuildQuadPatchVB(ID3D11Device* device)
-	{
-		std::vector<Vertex::posTexBondsY> patchVertices(mNumPatchVertRows*mNumPatchVertCols);
-
-		float halfWidth = 0.5f*GetWidth();
-		float halfDepth = 0.5f*GetDepth();
-
-		float patchWidth = GetWidth() / (mNumPatchVertCols-1);
-		float patchDepth = GetDepth() / (mNumPatchVertRows-1);
-		float du = 1.0f / (mNumPatchVertCols-1);
-		float dv = 1.0f / (mNumPatchVertRows-1);
-
-		for(UINT i = 0; i < mNumPatchVertRows; ++i)
-		{
-			float z = halfDepth - i*patchDepth;
-			for(UINT j = 0; j < mNumPatchVertCols; ++j)
-			{
-				float x = -halfWidth + j*patchWidth;
-
-				patchVertices[i*mNumPatchVertCols+j].Pos = XMFLOAT3(x, 0.0f, z);
+				// Position vertex on grid relative to center
+				float pos_x =  x*size_patchCell_x - halfSize_x;
+				patchVertices[x+y*num_patchVertex_x].Pos = XMFLOAT3(pos_x, 0.0f, pos_y);
 
 				// Stretch texture over grid.
-				patchVertices[i*mNumPatchVertCols+j].Tex.x = j*du;
-				patchVertices[i*mNumPatchVertCols+j].Tex.y = i*dv;
+				patchVertices[x+y*num_patchVertex_x].Tex.x = x*du;
+				patchVertices[x+y*num_patchVertex_x].Tex.y = y*dv;
 			}
 		}
 
 		// Store axis-aligned bounding box y-bounds in upper-left patch corner.
-		for(UINT i = 0; i < mNumPatchVertRows-1; ++i)
+		// Note: lower left corner is left empty as it is not needed
+		for(UINT y=0; y<num_patchCells_y; y++)
 		{
-			for(UINT j = 0; j < mNumPatchVertCols-1; ++j)
+			for(UINT x=0; x<num_patchCells_x; x++)
 			{
-				UINT patchID = i*(mNumPatchVertCols-1)+j;
-				patchVertices[i*mNumPatchVertCols+j].BoundsY = mPatchBoundsY[patchID];
+				UINT index = x+y*num_patchCells_x;
+				patchVertices[x+y*num_patchVertex_x].BoundsY = heightmap_patchHeights[index];
 			}
 		}
+
 
 		D3D11_BUFFER_DESC vbd;
 		vbd.Usage = D3D11_USAGE_IMMUTABLE;
@@ -316,25 +380,32 @@ private:
 
 		D3D11_SUBRESOURCE_DATA vinitData;
 		vinitData.pSysMem = &patchVertices[0];
-		HR(device->CreateBuffer(&vbd, &vinitData, &mQuadPatchVB));
-	}
-	void BuildQuadPatchIB(ID3D11Device* device)
-	{
-		std::vector<USHORT> indices(mNumPatchQuadFaces*4); // 4 indices per quad face
 
+		std::vector<int> debug(patchVertices.size());
+		for(UINT i = 0; i < patchVertices.size(); ++i)
+		{
+			debug[i] =  patchVertices [i].Pos.z;
+		}
+
+		HR(device->CreateBuffer(&vbd, &vinitData, &vbuff_patches));
+	}
+	void buildQuadPatchIB(ID3D11Device* device)
+	{
+		std::vector<USHORT> indices(num_patchCells_total*4); // 4 indices per quad face
+		
 		// Iterate over each quad and compute indices.
 		int k = 0;
-		for(UINT i = 0; i < mNumPatchVertRows-1; ++i)
+		for(UINT i = 0; i < num_patchCells_y; ++i)
 		{
-			for(UINT j = 0; j < mNumPatchVertCols-1; ++j)
+			for(UINT j = 0; j < num_patchCells_x; ++j)
 			{
 				// Top row of 2x2 quad patch
-				indices[k]   = i*mNumPatchVertCols+j;
-				indices[k+1] = i*mNumPatchVertCols+j+1;
+				indices[k]   = i*num_patchVertex_x+j;
+				indices[k+1] = i*num_patchVertex_x+j+1;
 
 				// Bottom row of 2x2 quad patch
-				indices[k+2] = (i+1)*mNumPatchVertCols+j;
-				indices[k+3] = (i+1)*mNumPatchVertCols+j+1;
+				indices[k+2] = (i+1)*num_patchVertex_x+j;
+				indices[k+3] = (i+1)*num_patchVertex_x+j+1;
 
 				k += 4; // next quad
 			}
@@ -350,13 +421,14 @@ private:
 
 		D3D11_SUBRESOURCE_DATA iinitData;
 		iinitData.pSysMem = &indices[0];
-		HR(device->CreateBuffer(&ibd, &iinitData, &mQuadPatchIB));
+
+		HR(device->CreateBuffer(&ibd, &iinitData, &ibuff_patches));
 	}
-	void BuildHeightmapSRV(ID3D11Device* device)
+	void buildHeightmapSRV(ID3D11Device* device)
 	{
 		D3D11_TEXTURE2D_DESC texDesc;
-		texDesc.Width = mInfo.HeightmapWidth;
-		texDesc.Height = mInfo.HeightmapHeight;
+		texDesc.Width = num_vertex_x;
+		texDesc.Height = num_vertex_y;
 		texDesc.MipLevels = 1;
 		texDesc.ArraySize = 1;
 		texDesc.Format    = DXGI_FORMAT_R16_FLOAT;
@@ -368,12 +440,13 @@ private:
 		texDesc.MiscFlags = 0;
 
 		// HALF is defined in xnamath.h, for storing 16-bit float.
-		std::vector<HALF> hmap(mHeightmap.size());
-		std::transform(mHeightmap.begin(), mHeightmap.end(), hmap.begin(), XMConvertFloatToHalf);
+		std::vector<HALF> hmap(heightmap.size_total);
+		for(UINT i=0; i<hmap.size(); i++)
+			hmap[i]=XMConvertFloatToHalf(heightmap.get(i));
 
 		D3D11_SUBRESOURCE_DATA data;
 		data.pSysMem = &hmap[0];
-		data.SysMemPitch = mInfo.HeightmapWidth*sizeof(HALF);
+		data.SysMemPitch = num_vertex_x*sizeof(HALF);
 		data.SysMemSlicePitch = 0;
 
 		ID3D11Texture2D* hmapTex = 0;
@@ -384,7 +457,7 @@ private:
 		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 		srvDesc.Texture2D.MostDetailedMip = 0;
 		srvDesc.Texture2D.MipLevels = -1;
-		HR(device->CreateShaderResourceView(hmapTex, &srvDesc, &mHeightMapSRV));
+		HR(device->CreateShaderResourceView(hmapTex, &srvDesc, &view_heightMap));
 
 		// SRV saves reference.
 		ReleaseCOM(hmapTex);

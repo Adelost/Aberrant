@@ -40,7 +40,7 @@ private:
 public:
 	Camera()
 	{
-		mPosition = XMFLOAT3(0.0f, 35.0f, 0.0f); 
+		mPosition = XMFLOAT3(0.0f, 350.0f, 0.0f); 
 		mRight = XMFLOAT3(1.0f, 0.0f, 0.0f);
 		mUp = XMFLOAT3(0.0f, 1.0f, 0.0f);
 		mLook = XMFLOAT3(0.0f, -1.0f, 0.0f);

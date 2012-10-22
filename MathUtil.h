@@ -66,6 +66,121 @@ public:
 
 	static XMVECTOR RandUnitVec3();
 	static XMVECTOR RandHemisphereUnitVec3(XMVECTOR n);
+
+	static int gcd(int a, int b)
+	{
+		int c = a % b;
+		while(c != 0)
+		{
+			a = b;
+			b = c;
+			c = a % b;
+		}
+		return b;
+	}
+};
+
+class DynamicArray2D
+{
+private:
+	std::vector<float> data;
+public:
+	int size_x;
+	int size_y;
+	int size_total;
+
+	DynamicArray2D()
+	{
+	}
+	void copy(DynamicArray2D in)
+	{
+		for(int i=0; i<in.size_total; i++)
+			data[i] = in.get(i); 
+	}
+	void resize(int x, int y)
+	{
+		size_x = x;
+		size_y = y;
+		size_total = size_x*size_y;
+		data.resize(size_total);
+	}
+	void resize(DynamicArray2D *in)
+	{
+		size_x = in->size_x;
+		size_y = in->size_y;
+		size_total = size_x*size_y;
+		data.resize(size_total);
+	}
+	void set(int i, float value)
+	{
+		data[i] = value;
+	}
+	void set(int x, int y,float value)
+	{
+		data[x+size_y*y] = value;
+	}
+	float get(int i)
+	{
+		return data[i];
+	}
+	float get(int x, int y)
+	{
+		float ret = data[x+size_y*y];
+		return ret;
+	}
+	float safe_get(int x, int y)
+	{
+		float ret = 0.0f;
+		if(isValidIndex(x,y))
+			ret = data[x+size_y*y];
+		return ret;
+	}
+	bool isValidIndex(int x, int y)
+	{
+		return 
+			x>=0 && x<size_x && 
+			y>=0 && y<size_y;
+	}
+	float average(int x_source, int y_source)
+	{
+		float average = 0.0f;
+		int nrOfsamples = 0;
+
+		for(int y=y_source-1; y<=y_source+1; y++)
+		{
+			for(int x = x_source-1; x<=x_source+1; x++)
+			{
+				if(isValidIndex(x,y))
+				{
+					average += get(x,y);
+					nrOfsamples++;
+				}
+			}
+		}
+
+		float ret =  average/nrOfsamples;
+		return ret;
+	}
+	void smooth()
+	{
+		// Temp array to store filtered array
+		DynamicArray2D smooth_heightMap;
+		smooth_heightMap.resize(this);
+
+		// Filter array
+		for(int y=0; y<size_y; y++)
+		{
+			for(int x=0; x<size_x; x++)
+			{
+				smooth_heightMap.set(x, y, average(x,y));
+			}
+			int test = y;
+		}
+			
+
+		// Replace old array with filtered one
+		copy(smooth_heightMap);
+	}
 };
 
 #endif // MathUtil_H

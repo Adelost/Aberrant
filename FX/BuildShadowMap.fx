@@ -178,10 +178,10 @@ DomainOut DS(PatchTess patchTess,
 	float mipLevel = clamp( (distance(dout.PosW, gEyePosW) - MipInterval) / MipInterval, 0.0f, 6.0f);
 	
 	// Sample height map (stored in alpha channel).
-	float h = gNormalMap.SampleLevel(samLinear, dout.Tex, mipLevel).a;
+	float h = gNormalMap.SampleLevel(samLinear, dout.Tex, 0).a;
 	
 	// Offset vertex along normal.
-	dout.PosW += (gHeightScale*(h-1.0))*dout.NormalW;
+	dout.PosW += (gHeightScale*h)*dout.NormalW;
 	
 	// Project to homogeneous clip space.
 	dout.PosH = mul(float4(dout.PosW, 1.0f), gViewProj);

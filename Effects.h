@@ -93,6 +93,7 @@ public:
 	// Tech
 	ID3DX11EffectTechnique* tech_light1;
 	ID3DX11EffectTechnique* tech_tess;
+	ID3DX11EffectTechnique* tech_terrain;
 
 	// Per object
 	ID3DX11EffectMatrixVariable* world;
@@ -147,11 +148,29 @@ public:
 	ID3DX11EffectScalarVariable* maxTessFactor;
 	void SetMaxTessFactor(float f)                      { maxTessFactor->SetFloat(f); }
 
+	// Terrain
+	ID3DX11EffectScalarVariable* texelCellSpaceU;
+	void SetTexelCellSpaceU(float f)                    { texelCellSpaceU->SetFloat(f); }
+	ID3DX11EffectScalarVariable* texelCellSpaceV;
+	void SetTexelCellSpaceV(float f)                    { texelCellSpaceV->SetFloat(f); }
+	ID3DX11EffectScalarVariable* worldCellSpace;
+	void SetWorldCellSpace(float f)                    { worldCellSpace->SetFloat(f); }
+	ID3DX11EffectVectorVariable* worldFrustumPlanes;
+	void SetWorldFrustumPlanes(XMFLOAT4 planes[6])      { worldFrustumPlanes->SetFloatVectorArray(reinterpret_cast<float*>(planes), 0, 6); }
+	
+	ID3DX11EffectShaderResourceVariable* layerMapArray;
+	void SetLayerMapArray(ID3D11ShaderResourceView* tex)   { layerMapArray->SetResource(tex); }
+	ID3DX11EffectShaderResourceVariable* blendMap;
+	void SetBlendMap(ID3D11ShaderResourceView* tex)        { blendMap->SetResource(tex); }
+	ID3DX11EffectShaderResourceVariable* heightMap;
+	void SetHeightMap(ID3D11ShaderResourceView* tex)       { heightMap->SetResource(tex); }
+
 	FXStandard(ID3D11Device* device, const std::wstring& filename) : Effect(device, filename)
 	{
 		// Tech
 		tech_light1    = fx->GetTechniqueByName("Light1");
 		tech_tess    = fx->GetTechniqueByName("Tess1");
+		tech_terrain    = fx->GetTechniqueByName("Terrain1");
 
 		// Per object
 		viewProj = fx->GetVariableByName("gViewProj")->AsMatrix();
@@ -167,6 +186,12 @@ public:
 		fx_dirLights      = fx->GetVariableByName("gDirLight");
 		fx_pointLights    = fx->GetVariableByName("gPointLight");
 		fx_spotLights     = fx->GetVariableByName("gSpotLight");
+	
+		// Resources
+		diffuseMap        = fx->GetVariableByName("gDiffuseMap")->AsShaderResource();
+		shadowMap         = fx->GetVariableByName("gShadowMap")->AsShaderResource();
+		cubeMap           = fx->GetVariableByName("gCubeMap")->AsShaderResource();
+		normalMap         = fx->GetVariableByName("gNormalMap")->AsShaderResource();
 
 		// Tessellation
 		heightScale       = fx->GetVariableByName("gHeightScale")->AsScalar();
@@ -174,12 +199,16 @@ public:
 		minTessDistance   = fx->GetVariableByName("gMinTessDistance")->AsScalar();
 		minTessFactor     = fx->GetVariableByName("gMinTessFactor")->AsScalar();
 		maxTessFactor     = fx->GetVariableByName("gMaxTessFactor")->AsScalar();
-	
-		// Resources
-		diffuseMap        = fx->GetVariableByName("gDiffuseMap")->AsShaderResource();
-		shadowMap         = fx->GetVariableByName("gShadowMap")->AsShaderResource();
-		cubeMap           = fx->GetVariableByName("gCubeMap")->AsShaderResource();
-		normalMap         = fx->GetVariableByName("gNormalMap")->AsShaderResource();
+
+		// Terrain
+		texelCellSpaceU    = fx->GetVariableByName("gTexelCellSpaceU")->AsScalar();
+		texelCellSpaceV    = fx->GetVariableByName("gTexelCellSpaceV")->AsScalar();
+		worldCellSpace     = fx->GetVariableByName("gWorldCellSpace")->AsScalar();
+		worldFrustumPlanes = fx->GetVariableByName("gWorldFrustumPlanes")->AsVector();
+
+		layerMapArray      = fx->GetVariableByName("gLayerMapArray")->AsShaderResource();
+		blendMap           = fx->GetVariableByName("gBlendMap")->AsShaderResource();
+		heightMap          = fx->GetVariableByName("gHeightMap")->AsShaderResource();
 	};
 	~FXStandard(){}
 };
@@ -245,6 +274,7 @@ public:
 		MinTessFactor     = fx->GetVariableByName("gMinTessFactor")->AsScalar();
 		MaxTessFactor     = fx->GetVariableByName("gMaxTessFactor")->AsScalar();
 		DiffuseMap        = fx->GetVariableByName("gDiffuseMap")->AsShaderResource();
+		NormalMap        = fx->GetVariableByName("gNormalMap")->AsShaderResource();
 	};
 	~FXBuildShadowMap(){}
 };

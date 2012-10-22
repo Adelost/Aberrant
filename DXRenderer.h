@@ -42,6 +42,7 @@ private:
 
 	DXDrawManager *drawManager;
 	Sky* mSky;
+	Terrain mTerrain;
 
 	float tess_heightScale;
 	float tess_maxTessDistance;

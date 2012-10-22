@@ -59,6 +59,7 @@ void DXRenderer::init(HWND winId )
 	drawManager = new DXDrawManager(dxDevice, dxDeviceContext);
 	mSky = new Sky(dxDevice, L"Textures/Skyboxes/grasscube1024.dds", 5000.0f);
 	mSmap = new ShadowMap(dxDevice, SMapSize, SMapSize);
+	mTerrain.init(dxDevice, dxDeviceContext);
 
 	// Init tweakbar
 	TwInit(TW_DIRECT3D11, dxDevice);
@@ -83,6 +84,7 @@ void DXRenderer::buildMenu()
 
 	// Display
 	TwAddVarRW(menu, "Wire frame", TW_TYPE_BOOLCPP, &wireframe_enable, "group=Display");
+	TwAddVarRW(menu, "MSAA", TW_TYPE_BOOLCPP, &msaa_enable, "group=Display");
 	TwAddButton(menu, "Recompile shaders", tw_recompileShaders, this, "group=Display");
 	TwDefine("Settings/Display opened=false");
 	TwAddSeparator(menu, NULL, NULL);
@@ -245,6 +247,7 @@ void DXRenderer::onResize(int width, int height)
 	mCam.SetLens(0.25f*XM_PI, getAspectRatio(), 1.0f, 1000.0f);
 }
 
+
 void DXRenderer::resizeDX()
 {
 	// Release old views, they hold references to buffers we will be destroying; release the old depth/stencil buffer
@@ -362,18 +365,22 @@ void DXRenderer::update(float dt)
 	// Gameloop
 	//
 
-	// Update camera
+	//Update camera
 	if(lockCamera)
 	{
-		XMMATRIX pacPos = pacman.entity->getPos();
+		/*XMMATRIX pacPos = pacman.entity->getPos();
 		XMVECTOR oldPos = mCam.GetPositionXM();
 		XMVECTOR newPos = XMVectorSet(pacPos._41, XMVectorGetY(oldPos), pacPos._43, 1.0f);
 		XMFLOAT3 interpolatet_pos;
 		XMStoreFloat3(&interpolatet_pos,XMVectorLerp(oldPos, newPos, dt*2.0f));
-		mCam.SetPosition(interpolatet_pos);
+		mCam.SetPosition(interpolatet_pos);*/
 
 		//// update point light
 		//XMStoreFloat3(&mPointLight.Position, XMVectorSet(pacPos._41, pacPos._42, pacPos._43, 1.0f));
+
+		XMFLOAT3 camPos = mCam.GetPosition();
+		camPos.y =  mTerrain.getTerrainHeight(camPos.x, camPos.z) + 2.0f;
+		mCam.SetPosition(camPos);
 	}
 
 	// Update game
@@ -409,14 +416,14 @@ void DXRenderer::update(float dt)
 
 void DXRenderer::renderFrame()
 {
-	//mSmap->BindDsvAndSetNullRenderTarget(dxDeviceContext);
-	//DrawSceneToShadowMap();
-	//dxDeviceContext->RSSetState(0);
+	mSmap->BindDsvAndSetNullRenderTarget(dxDeviceContext);
+	DrawSceneToShadowMap();
+	dxDeviceContext->RSSetState(0);
 
-	//// Restore the back and depth buffer to the OM stage.
-	//ID3D11RenderTargetView* renderTargets[1] = {view_renderTarget};
-	//dxDeviceContext->OMSetRenderTargets(1, renderTargets, view_depthStencil);
-	//dxDeviceContext->RSSetViewports(1, &viewport_screen);
+	// Restore the back and depth buffer to the OM stage.
+	ID3D11RenderTargetView* renderTargets[1] = {view_renderTarget};
+	dxDeviceContext->OMSetRenderTargets(1, renderTargets, view_depthStencil);
+	dxDeviceContext->RSSetViewports(1, &viewport_screen);
 
 	// Clear render target & depth/stencil
 	dxDeviceContext->ClearRenderTargetView(view_renderTarget, reinterpret_cast<const float*>(&Colors::DeepBlue));
@@ -453,6 +460,8 @@ void DXRenderer::renderFrame()
 		drawGame(pass);
 	}
 
+	mTerrain.draw(dxDeviceContext, &mCam);
+
 	dxDeviceContext->RSSetState(0);
 
 	// FX sets tessellation stages, but it does not disable them.  So do that here
@@ -466,7 +475,6 @@ void DXRenderer::renderFrame()
 	{
 		DrawScreenQuad(mSmap->DepthMapSRV());
 	}
-
 
 	mSky->Draw(dxDeviceContext, &mCam);
 
@@ -490,7 +498,7 @@ void DXRenderer::drawGame(UINT pass)
 {
 	XMMATRIX viewProj = mCam.ViewProj();
 
-	//// Draw land
+	// Draw land
 	drawManager->drawObject(1, 0, XMMatrixIdentity(), viewProj, pass);
 
 	////Draw maze
@@ -513,16 +521,16 @@ void DXRenderer::drawGame(UINT pass)
 	//	}
 	//}
 
-	//Draw game entities
-	XMMATRIX world = (XMMATRIX)pacman.entity->getPos();
-	XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(0.7f));
-	drawManager->drawObject(0, 2, scale*world, viewProj, pass);
+	////Draw game entities
+	//XMMATRIX world = (XMMATRIX)pacman.entity->getPos();
+	//XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(0.7f));
+	//drawManager->drawObject(0, 2, scale*world, viewProj, pass);
 
-	//Draw debug box for game entities
-	world = (XMMATRIX)pacman.entity->debug_getPos();
-	dxDeviceContext->RSSetState(shaderManager->states.WireframeRS);
-	drawManager->drawObject(0, 2, world, viewProj, pass);
-	dxDeviceContext->RSSetState(0);
+	////Draw debug box for game entities
+	//world = (XMMATRIX)pacman.entity->debug_getPos();
+	//dxDeviceContext->RSSetState(shaderManager->states.WireframeRS);
+	//drawManager->drawObject(0, 2, world, viewProj, pass);
+	//dxDeviceContext->RSSetState(0);
 }
 
 void DXRenderer::DrawSceneToShadowMap()
@@ -536,16 +544,16 @@ void DXRenderer::DrawSceneToShadowMap()
 	fx->SetViewProj(viewProj);
 
 	// These properties could be set per object if needed.
-	fx->SetHeightScale(0.07f);
-	fx->SetMaxTessDistance(1.0f);
-	fx->SetMinTessDistance(25.0f);
-	fx->SetMinTessFactor(1.0f);
-	fx->SetMaxTessFactor(5.0f);
+	fx->SetHeightScale(tess_heightScale);
+	fx->SetMaxTessDistance(tess_maxTessDistance);
+	fx->SetMinTessDistance(tess_minTessDistance);
+	fx->SetMinTessFactor(tess_minTessFactor);
+	fx->SetMaxTessFactor(tess_maxTessFactor);
 
 	drawManager->prepareFrame_shadowMap();
 
 	// Draw
-	ID3DX11EffectTechnique* tech = fx->BuildShadowMapTech;
+	ID3DX11EffectTechnique* tech = fx->TessBuildShadowMapTech;
 	D3DX11_TECHNIQUE_DESC techDesc;
 	tech->GetDesc(&techDesc);
 	for(UINT pass = 0; pass < techDesc.Passes; pass++)

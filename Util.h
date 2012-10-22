@@ -46,6 +46,65 @@ public:
 		XMVECTOR det = XMMatrixDeterminant(A);
 		return XMMatrixTranspose(XMMatrixInverse(&det, A));
 	}
+
+	// Order: left, right, bottom, top, near, far.
+	static void extractFrustumPlanes(XMFLOAT4 planes[6], CXMMATRIX mat)
+	{
+		//
+		// Left
+		//
+		planes[0].x = mat(0,3) + mat(0,0);
+		planes[0].y = mat(1,3) + mat(1,0);
+		planes[0].z = mat(2,3) + mat(2,0);
+		planes[0].w = mat(3,3) + mat(3,0);
+
+		//
+		// Right
+		//
+		planes[1].x = mat(0,3) - mat(0,0);
+		planes[1].y = mat(1,3) - mat(1,0);
+		planes[1].z = mat(2,3) - mat(2,0);
+		planes[1].w = mat(3,3) - mat(3,0);
+
+		//
+		// Bottom
+		//
+		planes[2].x = mat(0,3) + mat(0,1);
+		planes[2].y = mat(1,3) + mat(1,1);
+		planes[2].z = mat(2,3) + mat(2,1);
+		planes[2].w = mat(3,3) + mat(3,1);
+
+		//
+		// Top
+		//
+		planes[3].x = mat(0,3) - mat(0,1);
+		planes[3].y = mat(1,3) - mat(1,1);
+		planes[3].z = mat(2,3) - mat(2,1);
+		planes[3].w = mat(3,3) - mat(3,1);
+
+		//
+		// Near
+		//
+		planes[4].x = mat(0,2);
+		planes[4].y = mat(1,2);
+		planes[4].z = mat(2,2);
+		planes[4].w = mat(3,2);
+
+		//
+		// Far
+		//
+		planes[5].x = mat(0,3) - mat(0,2);
+		planes[5].y = mat(1,3) - mat(1,2);
+		planes[5].z = mat(2,3) - mat(2,2);
+		planes[5].w = mat(3,3) - mat(3,2);
+
+		// Normalize the plane equations.
+		for(int i = 0; i < 6; ++i)
+		{
+			XMVECTOR v = XMPlaneNormalize(XMLoadFloat4(&planes[i]));
+			XMStoreFloat4(&planes[i], v);
+		}
+	}
 };
 
 
@@ -79,9 +138,10 @@ public:
 class DXUtil
 {
 public:
-	static ID3D11ShaderResourceView* CreateTexture2DArraySRV(
-		ID3D11Device* device, ID3D11DeviceContext* context,
-		std::vector<std::wstring>& filenames,
+	static ID3D11ShaderResourceView* create_view_texArray(
+		ID3D11Device* device, 
+		ID3D11DeviceContext* context,
+		std::vector<std::wstring>& fileNames,
 		DXGI_FORMAT format = DXGI_FORMAT_FROM_FILE,
 		UINT filter = D3DX11_FILTER_NONE, 
 		UINT mipFilter = D3DX11_FILTER_LINEAR)
@@ -93,7 +153,7 @@ public:
 		// CPU can read the resource.
 		//
 
-		UINT size = filenames.size();
+		UINT size = fileNames.size();
 
 		std::vector<ID3D11Texture2D*> srcTex(size);
 		for(UINT i = 0; i < size; ++i)
@@ -114,83 +174,80 @@ public:
 			loadInfo.MipFilter = mipFilter;
 			loadInfo.pSrcInfo  = 0;
 
-			HR(D3DX11CreateTextureFromFile(device, filenames[i].c_str(), 
-				&loadInfo, 0, (ID3D11Resource**)&srcTex[i], 0));
+			HR(D3DX11CreateTextureFromFile(device, fileNames[i].c_str(), &loadInfo, NULL, (ID3D11Resource**)&srcTex[i], NULL));
 		}
 
+
 		//
-		// Create the texture array.  Each element in the texture 
-		// array has the same format/dimensions.
+		// Create texture array
 		//
 
-		D3D11_TEXTURE2D_DESC texElementDesc;
-		srcTex[0]->GetDesc(&texElementDesc);
+		// Get desc from first texture (each element has same format/dimension)
+		D3D11_TEXTURE2D_DESC desc_texElement;
+		srcTex[0]->GetDesc(&desc_texElement);
 
-		D3D11_TEXTURE2D_DESC texArrayDesc;
-		texArrayDesc.Width              = texElementDesc.Width;
-		texArrayDesc.Height             = texElementDesc.Height;
-		texArrayDesc.MipLevels          = texElementDesc.MipLevels;
-		texArrayDesc.ArraySize          = size;
-		texArrayDesc.Format             = texElementDesc.Format;
-		texArrayDesc.SampleDesc.Count   = 1;
-		texArrayDesc.SampleDesc.Quality = 0;
-		texArrayDesc.Usage              = D3D11_USAGE_DEFAULT;
-		texArrayDesc.BindFlags          = D3D11_BIND_SHADER_RESOURCE;
-		texArrayDesc.CPUAccessFlags     = 0;
-		texArrayDesc.MiscFlags          = 0;
+		D3D11_TEXTURE2D_DESC desc_texArray;
+		desc_texArray.Width              = desc_texElement.Width;
+		desc_texArray.Height             = desc_texElement.Height;
+		desc_texArray.MipLevels          = desc_texElement.MipLevels;
+		desc_texArray.ArraySize          = size;
+		desc_texArray.Format             = desc_texElement.Format;
+		desc_texArray.SampleDesc.Count   = 1;
+		desc_texArray.SampleDesc.Quality = 0;
+		desc_texArray.Usage              = D3D11_USAGE_DEFAULT;
+		desc_texArray.BindFlags          = D3D11_BIND_SHADER_RESOURCE;
+		desc_texArray.CPUAccessFlags     = 0;
+		desc_texArray.MiscFlags          = 0;
 
+		// Create array
 		ID3D11Texture2D* texArray = 0;
-		HR(device->CreateTexture2D( &texArrayDesc, 0, &texArray));
+		HR(device->CreateTexture2D( &desc_texArray, 0, &texArray));
 
-		//
-		// Copy individual texture elements into texture array.
-		//
-
-		// for each texture element...
-		for(UINT texElement = 0; texElement < size; ++texElement)
+		// Copy individual texture elements into texture array
+		for(UINT texElement=0; texElement<size; texElement++)
 		{
-			// for each mipmap level...
-			for(UINT mipLevel = 0; mipLevel < texElementDesc.MipLevels; ++mipLevel)
+			for(UINT mipLevel=0; mipLevel<desc_texElement.MipLevels; mipLevel++)
 			{
 				D3D11_MAPPED_SUBRESOURCE mappedTex2D;
 				HR(context->Map(srcTex[texElement], mipLevel, D3D11_MAP_READ, 0, &mappedTex2D));
 
 				context->UpdateSubresource(texArray, 
-					D3D11CalcSubresource(mipLevel, texElement, texElementDesc.MipLevels),
+					D3D11CalcSubresource(mipLevel, texElement, desc_texElement.MipLevels),
 					0, mappedTex2D.pData, mappedTex2D.RowPitch, mappedTex2D.DepthPitch);
 
 				context->Unmap(srcTex[texElement], mipLevel);
 			}
 		}	
 
-		//
-		// Create a resource view to the texture array.
-		//
-
-		D3D11_SHADER_RESOURCE_VIEW_DESC viewDesc;
-		viewDesc.Format = texArrayDesc.Format;
-		viewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
-		viewDesc.Texture2DArray.MostDetailedMip = 0;
-		viewDesc.Texture2DArray.MipLevels = texArrayDesc.MipLevels;
-		viewDesc.Texture2DArray.FirstArraySlice = 0;
-		viewDesc.Texture2DArray.ArraySize = size;
-
-		ID3D11ShaderResourceView* texArraySRV = 0;
-		HR(device->CreateShaderResourceView(texArray, &viewDesc, &texArraySRV));
 
 		//
-		// Cleanup--we only need the resource view.
+		// Create´resource view to texture array.
+		//
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC desc_view;
+		desc_view.Format = desc_texArray.Format;
+		desc_view.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
+		desc_view.Texture2DArray.MostDetailedMip = 0;
+		desc_view.Texture2DArray.MipLevels = desc_texArray.MipLevels;
+		desc_view.Texture2DArray.FirstArraySlice = 0;
+		desc_view.Texture2DArray.ArraySize = size;
+
+		ID3D11ShaderResourceView* view_texArray = 0;
+		HR(device->CreateShaderResourceView(texArray, &desc_view, &view_texArray));
+
+		
+		//
+		// Cleanup -- we only need the resource view.
 		//
 
 		ReleaseCOM(texArray);
-
 		for(UINT i = 0; i < size; ++i)
 			ReleaseCOM(srcTex[i]);
 
-		return texArraySRV;
+		return view_texArray;
 	}
 
-	//static ID3D11ShaderResourceView* CreateRandomTexture1DSRV(ID3D11Device* device);
+	//static ID3D11ShaderResourceView* create_viewRandomTexture(ID3D11Device* device);
 };
 
 
