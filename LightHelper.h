@@ -1,7 +1,7 @@
 #ifndef LIGHTHELPER_H
 #define LIGHTHELPER_H
 
-#include <xnamath.h>
+#include "MathUtil.h"
 
 struct DirectionalLight
 {

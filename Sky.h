@@ -3,7 +3,6 @@
 
 #include "Util.h"
 
-#include "Sky.h"
 #include "GeometryGenerator.h"
 #include "Camera.h"
 #include "ShaderManager.h"
@@ -84,7 +83,7 @@ public:
 		XMMATRIX T = XMMatrixTranslation(eyePos.x, eyePos.y, eyePos.z);
 
 
-		XMMATRIX WVP = XMMatrixMultiply(XMMatrixIdentity(), camera->ViewProj());
+		XMMATRIX WVP = XMMatrixMultiply(T, camera->ViewProj());
 
 		ShaderManager* shaderManager = ShaderManager::getInstance();
 		FXSkybox* fx = shaderManager->effects.fx_skybox;

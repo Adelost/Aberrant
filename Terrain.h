@@ -6,23 +6,18 @@
 #include "ShaderManager.h"
 #include "Camera.h"
 
-#include <fstream>
-#include <sstream>
-
-struct DirectionalLight;
-
 class Terrain
 {
 public:
 	struct InitInfo
 	{
 		std::wstring path_heightMap;
+		std::wstring path_blendMap;
 		std::wstring path_layer0;
 		std::wstring path_layer1;
 		std::wstring path_layer2;
 		std::wstring path_layer3;
 		std::wstring path_layer4;
-		std::wstring path_blendMap;
 		float heightScale;
 		float cellScale;
 		UINT size_heightmap_x;
@@ -42,7 +37,7 @@ private:
 	ID3D11ShaderResourceView* view_blendMap;
 	ID3D11ShaderResourceView* view_heightMap;
 
-	//InitInfo info;
+	InitInfo info;
 
 	XMFLOAT4X4 mWorld;
 
@@ -104,18 +99,19 @@ public:
 	void init(ID3D11Device* device, ID3D11DeviceContext* context)
 	{
 		Terrain::InitInfo info;
-		info.path_heightMap = L"Textures/Terrain/terrain.raw";
-		info.path_layer0 = L"Textures/Terrain/grass.dds";
-		info.path_layer1 = L"Textures/Terrain/darkdirt.dds";
-		info.path_layer2 = L"Textures/Terrain/stone.dds";
-		info.path_layer3 = L"Textures/Terrain/lightdirt.dds";
-		info.path_layer4 = L"Textures/Terrain/snow.dds";
-		info.path_blendMap = L"Textures/Terrain/blend.dds";
+		info.path_heightMap = L"Textures/Terrain/_terrain.raw";
+		info.path_blendMap = L"Textures/Terrain/_blend.dds";
+		info.path_layer0 = L"Textures/Terrain/default_white.dds";
+		info.path_layer1 = L"Textures/Terrain/default_white.dds";
+		info.path_layer2 = L"Textures/Terrain/default_white.dds";
+		info.path_layer3 = L"Textures/Terrain/road.dds";
+		info.path_layer4 = L"Textures/Terrain/default_green.dds";
 		info.heightScale = 50.0f;
 		info.cellScale = 0.5f;
 		info.size_heightmap_x = 2049;
 		info.size_heightmap_y = 2049;
 		info.cellsPerPatch_dim = 6;
+		this->info = info;
 
 		// Divide heightmap into patches of size "num_cellsPerPatch" cells
 		cellScale = info.cellScale;
@@ -263,13 +259,11 @@ public:
 		}
 	}
 
-	void buildMenu(TwBar* menu)
-	{
-		/*TwAddVarRW(menu, "Walking speed", TW_TYPE_FLOAT, &walkingSpeed, "group=Camera");
-		TwAddVarRW(menu, "Position", TW_TYPE_DIR3F, &mPosition, "group=Camera");
-		TwAddVarRW(menu, "Direction", TW_TYPE_DIR3F, &mLook, "group=Camera");
-		TwDefine("Settings/Camera opened=false");*/
-	};
+	void recreate()
+	{                         
+	}
+
+	void buildMenu(TwBar* menu);
 
 private:
 	void loadHeightmap(std::wstring path, float heightScale)

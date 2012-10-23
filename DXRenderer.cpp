@@ -16,7 +16,7 @@ DXRenderer::DXRenderer()
 	// DX settings
 	msaa_quality = 0;
 	msaa_enable = true;
-	wireframe_enable = true;
+	wireframe_enable = false;
 	clientWidth = 800;
 	clientHeight = 600;
 
@@ -57,7 +57,7 @@ void DXRenderer::init(HWND winId )
 	shaderManager = ShaderManager::getInstance();
 	shaderManager->init(dxDevice);
 	drawManager = new DXDrawManager(dxDevice, dxDeviceContext);
-	mSky = new Sky(dxDevice, L"Textures/Skyboxes/grasscube1024.dds", 5000.0f);
+	mSky = new Sky(dxDevice, L"Textures/Skyboxes/snowcube1024.dds", 5000.0f);
 	mSmap = new ShadowMap(dxDevice, SMapSize, SMapSize);
 	mTerrain.init(dxDevice, dxDeviceContext);
 
@@ -140,6 +140,7 @@ void DXRenderer::buildMenu()
 	TwDefine("Settings/Tessellation opened=false");
 
 	// Init menu in entities
+	mTerrain.buildMenu(menu);
 	drawManager->buildMenu(menu);
 	mCam.buildMenu(menu);
 

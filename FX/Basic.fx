@@ -715,7 +715,8 @@ float4 terr_PS(terr_DomainOut pin) : SV_Target
 	//
 
 	float3 normalMapSample = gNormalMap.Sample(samLinear, pin.Tex).rgb;
-	float3 bumpedNormalW = NormalSampleToWorldSpace(normalMapSample, normalW, tangent);
+	float3 bumpedNormalW = normalW;
+	//float3 bumpedNormalW = NormalSampleToWorldSpace(normalMapSample, normalW, tangent);
 
 	//
 	// Lighting.

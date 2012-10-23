@@ -2,12 +2,11 @@
 #define EFFECTS_H
 
 #include "Util.h"
-#include "d3dx11Effect.h"
+
 //
 // Base class
 //
 
-#pragma region Effect
 class Effect
 {
 public:
@@ -79,14 +78,12 @@ public:
 protected:
 	ID3DX11Effect* fx;
 };
-#pragma endregion
 
 
 //
 // Derived classes
 //
 
-#pragma region FXStandard
 class FXStandard : public Effect
 {
 public:
@@ -103,6 +100,7 @@ public:
 		XMMATRIX worldInvTranspose = Util::InverseTranspose(M);
 		SetWorldInvTranspose(worldInvTranspose);
 	}
+
 	ID3DX11EffectMatrixVariable* worldInvTranspose;
 	void SetWorldInvTranspose(CXMMATRIX M)				{worldInvTranspose->SetMatrix(reinterpret_cast<const float*>(&M)); }
 	ID3DX11EffectMatrixVariable* viewProj;
@@ -212,9 +210,7 @@ public:
 	};
 	~FXStandard(){}
 };
-#pragma endregion
 
-#pragma region FXBuildShadowMap
 class FXBuildShadowMap : public Effect
 {
 public:
@@ -278,9 +274,7 @@ public:
 	};
 	~FXBuildShadowMap(){}
 };
-#pragma endregion
 
-#pragma region FXSkybox
 class FXSkybox : public Effect
 {
 public:
@@ -301,9 +295,7 @@ public:
 
 	ID3DX11EffectShaderResourceVariable* CubeMap;
 };
-#pragma endregion
 
-#pragma region FXShowTexture
 class FXShowTexture : public Effect
 {
 public:
@@ -332,10 +324,8 @@ public:
 	ID3DX11EffectMatrixVariable* WorldViewProj;
 	ID3DX11EffectShaderResourceVariable* Texture;
 };
-#pragma endregion
 
 // Manager class
-#pragma region Effects
 class Effects
 {
 public:
@@ -373,6 +363,5 @@ public:
 
 private:
 };
-#pragma endregion
 
 #endif

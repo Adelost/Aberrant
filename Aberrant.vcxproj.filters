@@ -106,6 +106,15 @@
     <ClCompile Include="main.cpp">
       <Filter>Files</Filter>
     </ClCompile>
+    <ClCompile Include="Terrain.cpp">
+      <Filter>Files\Geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="Sky.cpp">
+      <Filter>Files\Geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="GameTimer.cpp">
+      <Filter>Files\Helper</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="GeneratedFiles\ui_mainwindow.h">

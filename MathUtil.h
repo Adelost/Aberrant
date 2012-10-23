@@ -9,6 +9,7 @@
 
 #include <Windows.h>
 #include <xnamath.h>
+#include <Vector>
 
 class MathUtil
 {

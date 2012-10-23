@@ -1,15 +1,17 @@
 #ifndef UTIL_H
 #define UTIL_H
 
+#include <d3dx11.h>
+#include "d3dx11Effect.h"
+#include "MathUtil.h"
+#include "LightHelper.h"
+// -- WARNING! Must include Windows.h before XNA or you will grow old and die!
 #include <assert.h>
-#include <xnamath.h> // math library
 #include <sstream>
 #include <fstream> // used to open files
 #include <dxerr.h> // used to debug
 #include <QMessageBox> // used to display info dialogs
 #include <AntTweakBar.h> // used to debug
-
-#include "MathUtil.h"
 
 namespace Colors
 {

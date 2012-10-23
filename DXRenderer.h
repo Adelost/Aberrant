@@ -18,6 +18,7 @@ private:
 	int clientHeight;
 	HWND winId;
 
+
 	ID3D11Device* dxDevice;
 	ID3D11DeviceContext* dxDeviceContext;
 	IDXGISwapChain* dxSwapChain;
