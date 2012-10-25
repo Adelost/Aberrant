@@ -12,6 +12,7 @@
 #include <dxerr.h> // used to debug
 #include <QMessageBox> // used to display info dialogs
 #include <AntTweakBar.h> // used to debug
+using namespace std;
 
 namespace Colors
 {
@@ -39,9 +40,6 @@ public:
 	}
 	static XMMATRIX InverseTranspose(CXMMATRIX M)
 	{
-		// Inverse-transpose is just applied to normals.  So zero out 
-		// translation row so that it doesn't get into our inverse-transpose
-		// calculation--we don't want the inverse-transpose of the translation.
 		XMMATRIX A = M;
 		A.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -149,11 +147,9 @@ public:
 		UINT mipFilter = D3DX11_FILTER_LINEAR)
 	{
 		//
-		// Load the texture elements individually from file.  These textures
-		// won't be used by the GPU (0 bind flags), they are just used to 
-		// load the image data from file.  We use the STAGING usage so the
-		// CPU can read the resource.
-		//
+		// Load the texture elements individually from file
+		// 
+
 
 		UINT size = fileNames.size();
 
@@ -223,7 +219,7 @@ public:
 
 
 		//
-		// Create´resource view to texture array.
+		// Create resource view to texture array.
 		//
 
 		D3D11_SHADER_RESOURCE_VIEW_DESC desc_view;

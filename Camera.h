@@ -1,12 +1,3 @@
-//***************************************************************************************
-// Camera.h by Frank Luna (C) 2011 All Rights Reserved.
-//   
-// Simple first person style camera class that lets the viewer explore the 3D scene.
-//   -It keeps track of the camera coordinate system relative to the world space
-//    so that the view matrix can be constructed.  
-//   -It keeps track of the viewing frustum of the camera so that the projection
-//    matrix can be obtained.
-//***************************************************************************************
 
 #ifndef CAMERA_H
 #define CAMERA_H
@@ -21,6 +12,7 @@ private:
 	XMFLOAT3 mRight;
 	XMFLOAT3 mUp;
 	XMFLOAT3 mLook;
+	bool debug;
 
 	// Cache frustum properties.
 	float mNearZ;
@@ -38,13 +30,21 @@ private:
 	TwBar *tw_menu;
 
 public:
+	float height;
+	float smoothFactor;
+
 	Camera()
 	{
-		mPosition = XMFLOAT3(0.0f, 350.0f, 0.0f); 
+		mPosition = XMFLOAT3(0.0f, 50.0f, 0.0f); 
 		mRight = XMFLOAT3(1.0f, 0.0f, 0.0f);
 		mUp = XMFLOAT3(0.0f, 1.0f, 0.0f);
-		mLook = XMFLOAT3(0.0f, -1.0f, 0.0f);
+		mLook = XMFLOAT3(0.0f, 0.0f, 1.0f);
 		walkingSpeed = 8.0f;
+
+		height = 15.0f;
+		smoothFactor = 8.0f;
+
+		debug = false;
 	};
 	~Camera(){};
 
@@ -54,6 +54,7 @@ public:
 		TwAddVarRW(menu, "Walking speed", TW_TYPE_FLOAT, &walkingSpeed, "group=Camera");
 		TwAddVarRW(menu, "Position", TW_TYPE_DIR3F, &mPosition, "group=Camera");
 		TwAddVarRW(menu, "Direction", TW_TYPE_DIR3F, &mLook, "group=Camera");
+		TwAddVarRW(menu, "Debug camera", TW_TYPE_BOOLCPP, &debug, "group=Camera");
 		TwDefine("Settings/Camera opened=false");
 	};
 
@@ -93,19 +94,6 @@ public:
 		return mLook;
 	};
 
-	//// Get frustum properties.
-	//float GetNearZ(){};
-	//float GetFarZ(){};
-	//float GetAspect(){};
-	//float GetFovY(){};
-	//float GetFovX(){};
-
-	//// Get near and far plane dimensions in view space coordinates.
-	//float GetNearWindowWidth(){};
-	//float GetNearWindowHeight(){};
-	//float GetFarWindowWidth(){};
-	//float GetFarWindowHeight(){};
-
 	// Set frustum.
 	void SetLens(float fovY, float aspect, float zn, float zf)
 	{
@@ -122,16 +110,6 @@ public:
 		XMStoreFloat4x4(&mProj, P);
 	};
 
-	//// Define camera space via LookAt parameters.
-	//void LookAt(FXMVECTOR pos, FXMVECTOR target, FXMVECTOR worldUp)
-	//{
-	//	int test;
-	//};
-	//void LookAt(const XMFLOAT3& pos, const XMFLOAT3& target, const XMFLOAT3& up)
-	//{
-	//	int test;
-	//};
-
 	// Get View/Proj matrices.
 	XMMATRIX View()
 	{
@@ -143,6 +121,15 @@ public:
 	};
 	XMMATRIX ViewProj()
 	{
+		if(debug)
+		{
+			UpdateViewMatrixDebug();
+		}
+		return XMMatrixMultiply(View(), Proj());
+	};
+	XMMATRIX ViewProjDebug()
+	{
+		UpdateViewMatrix();
 		return XMMatrixMultiply(View(), Proj());
 	};
 
@@ -216,6 +203,50 @@ public:
 		mView(0,2) = mLook.x; 
 		mView(1,2) = mLook.y; 
 		mView(2,2) = mLook.z; 
+		mView(3,2) = z;   
+
+		mView(0,3) = 0.0f;
+		mView(1,3) = 0.0f;
+		mView(2,3) = 0.0f;
+		mView(3,3) = 1.0f;
+	};
+	void UpdateViewMatrixDebug()
+	{
+		XMVECTOR R = XMLoadFloat3(&mRight);
+		XMVECTOR U = XMLoadFloat3(&mUp);
+		XMVECTOR L = XMLoadFloat3(&XMFLOAT3(0.0f,-1.0f,0.0f));
+		XMVECTOR P = XMLoadFloat3(&XMFLOAT3(0.0f, 500.0f,0.0f));
+
+		// Keep camera's axes orthogonal to each other and of unit length.
+		L = XMVector3Normalize(L);
+		U = XMVector3Normalize(XMVector3Cross(L, R));
+
+		// U, L already ortho-normal, so no need to normalize cross product.
+		R = XMVector3Cross(U, L); 
+
+		// Fill in the view matrix entries.
+		float x = -XMVectorGetX(XMVector3Dot(P, R));
+		float y = -XMVectorGetX(XMVector3Dot(P, U));
+		float z = -XMVectorGetX(XMVector3Dot(P, L));
+
+		XMFLOAT3 tmpLook;
+		XMStoreFloat3(&mRight, R);
+		XMStoreFloat3(&mUp, U);
+		XMStoreFloat3(&tmpLook, L);
+
+		mView(0,0) = mRight.x; 
+		mView(1,0) = mRight.y; 
+		mView(2,0) = mRight.z; 
+		mView(3,0) = x;   
+
+		mView(0,1) = mUp.x;
+		mView(1,1) = mUp.y;
+		mView(2,1) = mUp.z;
+		mView(3,1) = y;  
+
+		mView(0,2) = tmpLook.x; 
+		mView(1,2) = tmpLook.y; 
+		mView(2,2) = tmpLook.z; 
 		mView(3,2) = z;   
 
 		mView(0,3) = 0.0f;

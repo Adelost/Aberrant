@@ -3,7 +3,7 @@
 
 #include "Util.h"
 
-#include "GeometryGenerator.h"
+#include "GeometryFactory.h"
 #include "Camera.h"
 #include "ShaderManager.h"
 
@@ -13,6 +13,9 @@ private:
 	ID3D11Buffer* mVB;
 	ID3D11Buffer* mIB;
 
+	float height_scale;
+	float height_offset;
+
 	ID3D11ShaderResourceView* mCubeMapSRV;
 
 	UINT mIndexCount;
@@ -21,8 +24,8 @@ public:
 	{
 		HR(D3DX11CreateShaderResourceViewFromFile(device, cubemapFilename.c_str(), 0, 0, &mCubeMapSRV, 0));
 
-		GeometryGenerator::MeshData sphere;
-		GeometryGenerator geoGen;
+		GeometryFactory::MeshData sphere;
+		GeometryFactory geoGen;
 		geoGen.CreateSphere(skySphereRadius, 30, 30, sphere);
 
 		std::vector<XMFLOAT3> vertices(sphere.Vertices.size());
@@ -63,6 +66,9 @@ public:
 		iinitData.pSysMem = &indices16[0];
 
 		HR(device->CreateBuffer(&ibd, &iinitData, &mIB));
+
+		height_offset = 0.0f;
+		height_scale = 1.0f;
 	}
 	~Sky()
 	{
@@ -80,10 +86,10 @@ public:
 	{
 		// center Sky about eye in world space
 		XMFLOAT3 eyePos = camera->GetPosition();
-		XMMATRIX T = XMMatrixTranslation(eyePos.x, eyePos.y, eyePos.z);
+		XMMATRIX T = XMMatrixTranslation(eyePos.x, eyePos.y+height_offset, eyePos.z);
 
-
-		XMMATRIX WVP = XMMatrixMultiply(T, camera->ViewProj());
+		XMMATRIX scale = XMMatrixScaling(1.0f, height_scale, 1.0f);
+		XMMATRIX WVP = XMMatrixMultiply(scale*T, camera->ViewProj());
 
 		ShaderManager* shaderManager = ShaderManager::getInstance();
 		FXSkybox* fx = shaderManager->effects.fx_skybox;
@@ -110,6 +116,13 @@ public:
 			dc->DrawIndexed(mIndexCount, 0, 0);
 		}
 	}
+
+	void buildMenu(TwBar* menu)
+	{
+		TwAddVarRW(menu, "Sky height offset", TW_TYPE_FLOAT, &height_offset, "group=Sky step=1.00");
+		TwAddVarRW(menu, "Sky height scale", TW_TYPE_FLOAT, &height_scale, "group=Sky step=0.01 min=0.01");
+		TwDefine("Settings/Sky opened=false");
+	};
 
 private:
 	Sky(const Sky& rhs);

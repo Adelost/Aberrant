@@ -12,19 +12,25 @@ DXRenderer::DXRenderer()
 	view_renderTarget = 0;
 	view_depthStencil = 0;
 	mSmap = 0;
+	instancedBuffer = 0;
 
 	// DX settings
 	msaa_quality = 0;
-	msaa_enable = true;
+	//msaa_enable = true;
 	wireframe_enable = false;
 	clientWidth = 800;
 	clientHeight = 600;
+	drawPacman  = false;
+	drawTerrain  = true;
+	drawPlane   = false;
+	drawSky   = true;
+	drawMesh   = false;
 
 	tess_heightScale = 10.7f;
 	tess_maxTessDistance = 5.0f;
-	tess_minTessDistance = 20.0f;
+	tess_minTessDistance = 200.0f;
 	tess_minTessFactor = 1.0f;
-	tess_maxTessFactor = 1.0f;
+	tess_maxTessFactor = 7.0f;
 }
 
 DXRenderer::~DXRenderer()
@@ -38,6 +44,7 @@ DXRenderer::~DXRenderer()
 		dxDeviceContext->ClearState();
 	ReleaseCOM(dxDeviceContext);
 	ReleaseCOM(dxDevice);
+	ReleaseCOM(instancedBuffer);
 
 	// Delete managers
 	delete drawManager;
@@ -49,7 +56,7 @@ DXRenderer::~DXRenderer()
 	TwTerminate();
 }
 
-void DXRenderer::init(HWND winId )
+void DXRenderer::init(HWND winId, bool* doMSAA)
 {
 	// Init DX
 	this->winId = winId;
@@ -57,9 +64,28 @@ void DXRenderer::init(HWND winId )
 	shaderManager = ShaderManager::getInstance();
 	shaderManager->init(dxDevice);
 	drawManager = new DXDrawManager(dxDevice, dxDeviceContext);
-	mSky = new Sky(dxDevice, L"Textures/Skyboxes/snowcube1024.dds", 5000.0f);
+	mSky = new Sky(dxDevice, L"Textures/Skyboxes/plain.dds", 5000.0f);
 	mSmap = new ShadowMap(dxDevice, SMapSize, SMapSize);
-	mTerrain.init(dxDevice, dxDeviceContext);
+
+	Terrain::InitInfo info;
+	info.path_heightMap = L"Textures/Terrain/_terrain.raw";
+	info.path_blendMap = L"Textures/Terrain/_blend.dds";
+	info.path_layer0 = L"Textures/Terrain/default_white.dds";
+	info.path_layer1 = L"Textures/Terrain/default_white.dds";
+	info.path_layer2 = L"Textures/Terrain/default_white.dds";
+	info.path_layer3 = L"Textures/Terrain/road.dds";
+	info.path_layer4 = L"Textures/Terrain/default_green.dds";
+	info.heightScale = 50.0f;
+	info.cellScale = 0.5f;
+	info.size_heightmap_x = 2049;
+	info.size_heightmap_y = 2049;
+	info.cellsPerPatch_dim = 6;
+
+	mTerrain.init(dxDevice, dxDeviceContext, info);
+	sound.init();
+
+	mesh_maxTessFactor = 1.0f;
+	mesh_heightScale = 0.0f;
 
 	// Init tweakbar
 	TwInit(TW_DIRECT3D11, dxDevice);
@@ -67,6 +93,7 @@ void DXRenderer::init(HWND winId )
 
 	// Init game
 	initGameEntities();
+	initInstanceBuffer();
 	buildMenu();
 }
 
@@ -88,6 +115,14 @@ void DXRenderer::buildMenu()
 	TwAddButton(menu, "Recompile shaders", tw_recompileShaders, this, "group=Display");
 	TwDefine("Settings/Display opened=false");
 	TwAddSeparator(menu, NULL, NULL);
+
+	// Render
+	TwAddVarRW(menu, "Render terrain", TW_TYPE_BOOLCPP, &drawTerrain, "group=Render");
+	TwAddVarRW(menu, "Render plane", TW_TYPE_BOOLCPP, &drawPlane, "group=Render");
+	TwAddVarRW(menu, "Render pacman", TW_TYPE_BOOLCPP, &drawPacman, "group=Render");
+	TwAddVarRW(menu, "Render sky", TW_TYPE_BOOLCPP, &drawSky, "group=Render");
+	TwAddVarRW(menu, "Render mesh", TW_TYPE_BOOLCPP, &drawMesh, "group=Render");
+	TwDefine("Settings/Render opened=false");
 
 	//// Lights
 	//TwAddVarRW(menu, "DirAmbient", TW_TYPE_COLOR4F, &mDirLight.Ambient, "group='Dir light'");
@@ -137,21 +172,27 @@ void DXRenderer::buildMenu()
 	TwAddVarRW(menu, "tess_minTessDistance", TW_TYPE_FLOAT, &tess_minTessDistance, "group='Tessellation' step=0.1f");
 	TwAddVarRW(menu, "tess_minTessFactor", TW_TYPE_FLOAT, &tess_minTessFactor, "group='Tessellation' step=0.1f");
 	TwAddVarRW(menu, "tess_maxTessFactor", TW_TYPE_FLOAT, &tess_maxTessFactor, "group='Tessellation' step=0.1f");
+	TwAddVarRW(menu, "mesh_minTessFactor", TW_TYPE_FLOAT, &mesh_maxTessFactor, "group='Tessellation' step=0.1f");
+	TwAddVarRW(menu, "mesh_maxTessFactor", TW_TYPE_FLOAT, &mesh_heightScale, "group='Tessellation' step=0.1f");
 	TwDefine("Settings/Tessellation opened=false");
+
+	
 
 	// Init menu in entities
 	mTerrain.buildMenu(menu);
+	mSky->buildMenu(menu);
 	drawManager->buildMenu(menu);
+	TwAddVarRW(menu, "Camera walkmode", TW_TYPE_BOOLCPP, &lockCamera, "group=Camera");
+	TwAddVarRW(menu, "Camera height", TW_TYPE_FLOAT, &mCam.height, "group=Camera");
+	TwAddVarRW(menu, "Camera smooth factor", TW_TYPE_FLOAT, &mCam.smoothFactor, "group=Camera");
 	mCam.buildMenu(menu);
+
+	TwAddVarRW(menu, "Camera follow pacman", TW_TYPE_BOOLCPP, &lockPacmanCamera, "group=Game");
 
 	TwAddSeparator(menu, NULL, NULL);
 	pacman.entity->buildMenu(menu);
 	pacman.maze->buildMenu(menu);
-	
-
-	// Misc
-	TwAddVarRW(menu, "Focus camera", TW_TYPE_BOOLCPP, &lockCamera, "group=Game");
-	//lockCamera
+	sound.buildMenu(menu);
 }
 
 void DXRenderer::initDX()
@@ -248,7 +289,6 @@ void DXRenderer::onResize(int width, int height)
 	mCam.SetLens(0.25f*XM_PI, getAspectRatio(), 1.0f, 1000.0f);
 }
 
-
 void DXRenderer::resizeDX()
 {
 	// Release old views, they hold references to buffers we will be destroying; release the old depth/stencil buffer
@@ -329,6 +369,7 @@ void DXRenderer::initGameEntities()
 	//Init camera
 	mCam.SetLens(0.25f*XM_PI, getAspectRatio(), 1.0f, 3000.0f);
 	lockCamera = false;
+	lockPacmanCamera = false;
 }
 
 void DXRenderer::update(float dt)
@@ -366,22 +407,26 @@ void DXRenderer::update(float dt)
 	// Gameloop
 	//
 
+	// Sound
+	sound.update(dt);
+
 	//Update camera
 	if(lockCamera)
 	{
-		/*XMMATRIX pacPos = pacman.entity->getPos();
+		XMFLOAT3 oldPos = mCam.GetPosition();
+		XMFLOAT3 newPos = oldPos; newPos.y = mTerrain.getTerrainHeight(oldPos.x, oldPos.z) + mCam.height;
+
+		XMFLOAT3 interpolatet_pos; XMStoreFloat3(&interpolatet_pos, XMVectorLerp( XMLoadFloat3(&oldPos),  XMLoadFloat3(&newPos), dt*mCam.smoothFactor));
+		mCam.SetPosition(interpolatet_pos);
+	}
+	if(lockPacmanCamera)
+	{
+		XMMATRIX pacPos = pacman.entity->getPos();
 		XMVECTOR oldPos = mCam.GetPositionXM();
 		XMVECTOR newPos = XMVectorSet(pacPos._41, XMVectorGetY(oldPos), pacPos._43, 1.0f);
 		XMFLOAT3 interpolatet_pos;
 		XMStoreFloat3(&interpolatet_pos,XMVectorLerp(oldPos, newPos, dt*2.0f));
-		mCam.SetPosition(interpolatet_pos);*/
-
-		//// update point light
-		//XMStoreFloat3(&mPointLight.Position, XMVectorSet(pacPos._41, pacPos._42, pacPos._43, 1.0f));
-
-		XMFLOAT3 camPos = mCam.GetPosition();
-		camPos.y =  mTerrain.getTerrainHeight(camPos.x, camPos.z) + 2.0f;
-		mCam.SetPosition(camPos);
+		mCam.SetPosition(interpolatet_pos);
 	}
 
 	// Update game
@@ -390,29 +435,7 @@ void DXRenderer::update(float dt)
 	drawManager->buildShadowTransform();
 	mCam.UpdateViewMatrix();
 
-	//// update light
-	//// Light
-	//static bool updateSpot = false;
-	//TwAddVarRW(menu, "SpotFollow", TW_TYPE_BOOLCPP, &updateSpot, "group='Spotlight'");
-	//if(updateSpot)
-	//{
-	//	mSpotLight.Position =  mCam.GetPosition();
-	//	mSpotLight.Direction = mCam.GetLook();
-	//}
-
-	//static bool updatePoint = false;
-	//TwAddVarRW(menu, "SpotFollow", TW_TYPE_BOOLCPP, &updatePoint, "group='Point light'");
-	//if(updatePoint)
-	//{
-	//	mPointLight.Position =  mCam.GetPosition();
-	//}
-
-	//static bool updateDir = false;
-	//TwAddVarRW(menu, "DirFollow", TW_TYPE_BOOLCPP, &updateDir, "group='Dir light'");
-	//if(updateDir)
-	//{
-	//	mDirLight.Direction = mCam.GetLook();
-	//}
+	
 }
 
 void DXRenderer::renderFrame()
@@ -452,16 +475,15 @@ void DXRenderer::renderFrame()
 		dxDeviceContext->RSSetState(shaderManager->states.WireframeRS);
 
 
+	//
 	// Draw
-	ID3DX11EffectTechnique* tech = fx->tech_tess;
-	D3DX11_TECHNIQUE_DESC techDesc;
-	tech->GetDesc(&techDesc);
-	for(UINT pass = 0; pass < techDesc.Passes; pass++)
-	{
-		drawGame(pass);
-	}
+	// 
 
-	mTerrain.draw(dxDeviceContext, &mCam);
+	drawGame();
+	
+	
+	if(drawTerrain)
+		mTerrain.draw(dxDeviceContext, &mCam);
 
 	dxDeviceContext->RSSetState(0);
 
@@ -472,12 +494,13 @@ void DXRenderer::renderFrame()
 	dxDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// Debug view depth buffer.
-	if( GetAsyncKeyState('Z') & 0x8000 )
+	if(GetAsyncKeyState('Z') & 0x8000)
 	{
 		DrawScreenQuad(mSmap->DepthMapSRV());
 	}
 
-	mSky->Draw(dxDeviceContext, &mCam);
+	if(drawSky)
+		mSky->Draw(dxDeviceContext, &mCam);
 
 	// restore default states, as the SkyFX changes them in the effect file.
 	dxDeviceContext->RSSetState(0);
@@ -495,43 +518,124 @@ void DXRenderer::renderFrame()
 	HR(dxSwapChain->Present(0, 0));
 }
 
-void DXRenderer::drawGame(UINT pass)
+void DXRenderer::drawGame()
 {
+	FXStandard* fx = shaderManager->effects.fx_standard;
 	XMMATRIX viewProj = mCam.ViewProj();
 
-	// Draw land
-	drawManager->drawObject(1, 0, XMMatrixIdentity(), viewProj, pass);
+	ID3DX11EffectTechnique* tech = fx->tech_tess;
+	D3DX11_TECHNIQUE_DESC techDesc;
+	tech->GetDesc(&techDesc);
+	for(UINT pass = 0; pass<techDesc.Passes; pass++)
+	{
+		// Draw plane
+		if(drawPlane)
+		{
+			drawManager->drawObject(1, 0, XMMatrixIdentity(), viewProj, pass);
+		}
 
-	////Draw maze
-	//for(int y = 0; y<pacman.maze->getSizeY(); y++)
+		// Tessellation settings
+		fx->SetHeightScale(mesh_heightScale);
+		fx->SetMaxTessDistance(5.0);
+		fx->SetMinTessDistance(100.0);
+		fx->SetMinTessFactor(1.0);
+		fx->SetMaxTessFactor(mesh_maxTessFactor);
+
+
+		if(drawPacman)
+		{
+			
+
+			// Draw maze
+			for(int y = 0; y<pacman.maze->getSizeY(); y++)
+			{
+				for(int x = 0; x<pacman.maze->getSizeX(); x++)
+				{
+					XMMATRIX world = (XMMATRIX)pacman.maze->getPosition(x,y);
+					XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(1.0f));
+
+					if(pacman.maze->getTile(x,y)==1)
+					{
+						drawManager->drawObject(0, 1, scale*world, viewProj, pass);
+					}
+					if(pacman.maze->getTile(x,y)==0)
+					{
+						scale = XMMatrixScalingFromVector(XMVectorReplicate(0.1f));
+						drawManager->drawObject(0, 1, scale*world, viewProj, pass);
+					}
+				}
+			}
+
+			// Draw game entities
+			XMMATRIX world = (XMMATRIX)pacman.entity->getPos();
+			XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(0.7f));
+			drawManager->drawObject(0, 2, scale*world, viewProj, pass);
+		}
+
+		// Draw mesh
+		if(drawMesh)
+		{
+			dxDeviceContext->RSSetState(shaderManager->states.NoCullRS);
+			if(wireframe_enable)
+				dxDeviceContext->RSSetState(shaderManager->states.WireframeRS);
+			drawManager->drawMesh(0, viewProj, pass);
+			dxDeviceContext->RSSetState(0);
+		}
+	}
+
+	//
+	// Instancing
+	//
+
+	//// Draw pacman 
+	//if(drawPacman)
 	//{
-	//	for(int x = 0; x<pacman.maze->getSizeX(); x++)
-	//	{
-	//		XMMATRIX world = (XMMATRIX)pacman.maze->getPosition(x,y);
-	//		XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(1.0f));
 
+	//	UINT stride[2] = {sizeof(Vertex::posNormTexTan), sizeof(Vertex::InstancedData)};
+
+	//	tech = fx->tech_tess_inst;
+	//	tech->GetDesc(&techDesc);
+	//	for(UINT pass = 0; pass<techDesc.Passes; pass++)
+	//	{
+	//		// Draw maze -- with instancing!
+	//		// mapp world matrices to instance buffer
+	//		num_visibleObjects = 0;
+	//		D3D11_MAPPED_SUBRESOURCE mappedData; 
+	//		dxDeviceContext->Map(instancedBuffer, 0, D3D11_MAP_WRITE_NO_OVERWRITE, 0, &mappedData);
+	//		Vertex::InstancedData* data = reinterpret_cast<Vertex::InstancedData*>(mappedData.pData);
+	//		static float timer = 1.0f;
+	//		timer += 0.001;
+	//		XMStoreFloat4x4(&data[10].World, XMMatrixTranslation(8.0f,5.0f,100.0f));
+	//		/*	for(int y = 0; y<pacman.maze->getSizeY(); y++)
+	//		{
+	//		for(int x = 0; x<pacman.maze->getSizeX(); x++)
+	//		{
+	//		XMMATRIX world = (XMMATRIX)pacman.maze->getPosition(x,y);
+	//		XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(2.0f));
 	//		if(pacman.maze->getTile(x,y)==1)
 	//		{
-	//		drawManager->drawObject(0, 1, scale*world, viewProj, pass);
+	//		XMFLOAT4X4 inst_World; XMStoreFloat4x4(&inst_World, scale*world);
+	//		data[num_visibleObjects].World = inst_World;
+	//		num_visibleObjects++;
 	//		}
 	//		if(pacman.maze->getTile(x,y)==0)
 	//		{
 	//		scale = XMMatrixScalingFromVector(XMVectorReplicate(0.1f));
-	//		drawManager->drawObject(0, 1, scale*world, viewProj, pass);
+	//		XMFLOAT4X4 inst_World; XMStoreFloat4x4(&inst_World, scale*world);
+	//		data[num_visibleObjects].World = inst_World;
+	//		num_visibleObjects++;
 	//		}
+	//		}
+	//		}*/
+	//		dxDeviceContext->Unmap(instancedBuffer, 0);
+	//		// draw instance buffer
+	//		drawManager->prepareFrameInstanced(stride, instancedBuffer);
+	//		// Set input layout, topology, context
+	//		dxDeviceContext->IASetInputLayout(shaderManager->layout_inst_posNormTexTan);
+
+	//		drawManager->drawObjectInstanced(0, 2, pacman.maze->getSizeY(), viewProj, pass);
 	//	}
 	//}
-
-	////Draw game entities
-	//XMMATRIX world = (XMMATRIX)pacman.entity->getPos();
-	//XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(0.7f));
-	//drawManager->drawObject(0, 2, scale*world, viewProj, pass);
-
-	////Draw debug box for game entities
-	//world = (XMMATRIX)pacman.entity->debug_getPos();
-	//dxDeviceContext->RSSetState(shaderManager->states.WireframeRS);
-	//drawManager->drawObject(0, 2, world, viewProj, pass);
-	//dxDeviceContext->RSSetState(0);
 }
 
 void DXRenderer::DrawSceneToShadowMap()
@@ -560,32 +664,52 @@ void DXRenderer::DrawSceneToShadowMap()
 	for(UINT pass = 0; pass < techDesc.Passes; pass++)
 	{
 		// Draw land
-		drawManager->drawObject_shadowMap(1, 0, XMMatrixIdentity(), viewProj, pass);
+		if(drawPlane)
+			drawManager->drawObject_shadowMap(1, 0, XMMatrixIdentity(), viewProj, pass);
 
-		////Draw maze
-		//for(int y = 0; y<pacman.maze->getSizeY(); y++)
-		//{
-		//	for(int x = 0; x<pacman.maze->getSizeX(); x++)
-		//	{
-		//		XMMATRIX world = (XMMATRIX)pacman.maze->getPosition(x,y);
-		//		XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(1.0f));
+		// Tessellation settings
+		fx->SetHeightScale(mesh_heightScale);
+		fx->SetMaxTessDistance(5.0);
+		fx->SetMinTessDistance(100.0);
+		fx->SetMinTessFactor(1.0);
+		fx->SetMaxTessFactor(mesh_maxTessFactor);
 
-		//		if(pacman.maze->getTile(x,y)==1)
-		//		{
-		//			drawManager->drawObject_shadowMap(0, 1, scale*world, viewProj, pass);
-		//		}
-		//		if(pacman.maze->getTile(x,y)==0)
-		//		{
-		//			scale = XMMatrixScalingFromVector(XMVectorReplicate(0.1f));
-		//			drawManager->drawObject_shadowMap(0, 1, scale*world, viewProj, pass);
-		//		}
-		//	}
-		//}
 
-		//// Draw game entities
-		//XMMATRIX world = (XMMATRIX)pacman.entity->getPos();
-		//XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(0.7f));
-		//drawManager->drawObject_shadowMap(0, 2, scale*world, viewProj, pass);
+		// Draw mesh
+		if(drawMesh)
+		{
+			drawManager->drawMesh_shadowMap(0, viewProj, pass);
+		}
+
+		// Draw pacman
+		if(drawPacman)
+		{
+			fx->SetHeightScale(0.0f);
+			// Draw maze
+			for(int y = 0; y<pacman.maze->getSizeY(); y++)
+			{
+				for(int x = 0; x<pacman.maze->getSizeX(); x++)
+				{
+					XMMATRIX world = (XMMATRIX)pacman.maze->getPosition(x,y);
+					XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(1.0f));
+
+					if(pacman.maze->getTile(x,y)==1)
+					{
+						drawManager->drawObject_shadowMap(0, 1, scale*world, viewProj, pass);
+					}
+					if(pacman.maze->getTile(x,y)==0)
+					{
+						scale = XMMatrixScalingFromVector(XMVectorReplicate(0.1f));
+						drawManager->drawObject_shadowMap(0, 1, scale*world, viewProj, pass);
+					}
+				}
+			}
+
+			// Draw game entities
+			XMMATRIX world = (XMMATRIX)pacman.entity->getPos();
+			XMMATRIX scale = XMMatrixScalingFromVector(XMVectorReplicate(0.7f));
+			drawManager->drawObject_shadowMap(0, 2, scale*world, viewProj, pass);
+		}
 	}
 }
 
@@ -619,4 +743,25 @@ void DXRenderer::DrawScreenQuad(ID3D11ShaderResourceView* resource)
 		tech->GetPassByIndex(p)->Apply(0, dxDeviceContext);
 		dxDeviceContext->DrawIndexed(6, 0, 0);
 	}
+}
+
+void DXRenderer::initInstanceBuffer()
+{
+	std::vector<Vertex::InstancedData> instances(pacman.maze->getSizeY() * pacman.maze->getSizeX());
+	
+	for(int i = 0; i<(int)instances.size(); i++)
+	{
+		XMFLOAT4X4 identity; XMStoreFloat4x4(&identity, XMMatrixIdentity());//XMMatrixTranslation(i,i,i)
+		instances[i].World = identity;
+	}
+
+	D3D11_BUFFER_DESC vbd;
+	vbd.Usage = D3D11_USAGE_DYNAMIC;
+	vbd.ByteWidth = sizeof(Vertex::InstancedData) * instances.size();
+	vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	vbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	vbd.MiscFlags = 0;
+	vbd.StructureByteStride = 0;
+
+	HR(dxDevice->CreateBuffer(&vbd, 0, &instancedBuffer));
 }

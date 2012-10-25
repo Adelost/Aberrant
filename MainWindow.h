@@ -42,9 +42,16 @@ public:
 		// Create dxwidget
 		ui.actionDirectX->setChecked(true);
 		ui.actionCapFPS->setChecked(true);
+
+		//// Sound
+		//sound = 0;
+		//sound = new Sound();
+		//sound->init();
+		////sound->start(0);
 	};
 	~MainWindow()
 	{
+		//delete sound;
 	};
 
 private:

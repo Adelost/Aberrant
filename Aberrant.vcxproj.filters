@@ -51,6 +51,9 @@
     <Filter Include="Files\Camera">
       <UniqueIdentifier>{33b6cdc4-adbc-4e0a-95f8-1302b740d64c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Files\Sound">
+      <UniqueIdentifier>{a7977b88-1e83-48c0-8a2b-cdb07fe71e75}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="root\Forms\mainwindow.ui">
@@ -112,8 +115,11 @@
     <ClCompile Include="Sky.cpp">
       <Filter>Files\Geometry</Filter>
     </ClCompile>
-    <ClCompile Include="GameTimer.cpp">
-      <Filter>Files\Helper</Filter>
+    <ClCompile Include="Sound.cpp">
+      <Filter>Files\Sound</Filter>
+    </ClCompile>
+    <ClCompile Include="GeometryFactory.cpp">
+      <Filter>Files\Geometry</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -122,9 +128,6 @@
     </ClInclude>
     <ClInclude Include="Camera.h">
       <Filter>Files\Camera</Filter>
-    </ClInclude>
-    <ClInclude Include="GeometryGenerator.h">
-      <Filter>Files\Geometry</Filter>
     </ClInclude>
     <ClInclude Include="Cube.h">
       <Filter>Files\Renderer\GL</Filter>
@@ -176,6 +179,15 @@
     </ClInclude>
     <ClInclude Include="MathUtil.h">
       <Filter>Files\Helper</Filter>
+    </ClInclude>
+    <ClInclude Include="Sound.h">
+      <Filter>Files\Sound</Filter>
+    </ClInclude>
+    <ClInclude Include="Wave.h">
+      <Filter>Files\Sound</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryFactory.h">
+      <Filter>Files\Geometry</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

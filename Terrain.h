@@ -26,10 +26,6 @@ public:
 	};
 
 private:
-	// Divide heightmap into patches such that each patch has num_cellsPerPatch cells
-	// and num_cellsPerPatch+1 vertices.  Use 64 so that if we tessellate all the way 
-	// to 64, we use all the data from the heightmap.  
-
 	ID3D11Buffer* vbuff_patches;
 	ID3D11Buffer* ibuff_patches;
 
@@ -54,13 +50,17 @@ private:
 	// Patch grid
 	UINT num_patchVertex_total;
 	UINT num_patchCells_total;
-	UINT cellsPerPatch_dim;
+	float cellsPerPatch_dim;
+	float tess_min;
 	UINT num_cellsPerPatch;
 	UINT num_patchCells_x;
 	UINT num_patchCells_y;
 	UINT num_patchVertex_x;
 	UINT num_patchVertex_y;
 	std::vector<XMFLOAT2> heightmap_patchHeights;
+
+	ID3D11Device* device;
+	ID3D11DeviceContext* context;
 
 public:
 	Terrain()
@@ -70,6 +70,7 @@ public:
 		view_layersArray = 0; 
 		view_blendMap = 0;
 		view_heightMap = 0;
+		tess_min = 2.0f;
 
 		// Init attributes
 		XMStoreFloat4x4(&mWorld, XMMatrixIdentity());
@@ -96,21 +97,10 @@ public:
 		return num_cells_y*cellScale;
 	}
 
-	void init(ID3D11Device* device, ID3D11DeviceContext* context)
+	void init(ID3D11Device* device, ID3D11DeviceContext* context, Terrain::InitInfo info)
 	{
-		Terrain::InitInfo info;
-		info.path_heightMap = L"Textures/Terrain/_terrain.raw";
-		info.path_blendMap = L"Textures/Terrain/_blend.dds";
-		info.path_layer0 = L"Textures/Terrain/default_white.dds";
-		info.path_layer1 = L"Textures/Terrain/default_white.dds";
-		info.path_layer2 = L"Textures/Terrain/default_white.dds";
-		info.path_layer3 = L"Textures/Terrain/road.dds";
-		info.path_layer4 = L"Textures/Terrain/default_green.dds";
-		info.heightScale = 50.0f;
-		info.cellScale = 0.5f;
-		info.size_heightmap_x = 2049;
-		info.size_heightmap_y = 2049;
-		info.cellsPerPatch_dim = 6;
+		this->device = device;
+		this->context = context;
 		this->info = info;
 
 		// Divide heightmap into patches of size "num_cellsPerPatch" cells
@@ -125,10 +115,11 @@ public:
 		int max_numCellsPerPatch = MathUtil::gcd(num_cells_x, num_cells_y);
 		// calc specified patch size -- 2^cellsPerPatch_dim
 		cellsPerPatch_dim = info.cellsPerPatch_dim;
-		num_cellsPerPatch = 1 << cellsPerPatch_dim;
+		num_cellsPerPatch = 1 << (int)cellsPerPatch_dim;
 		// trim if necessary
 		if(num_cellsPerPatch > max_numCellsPerPatch)
 			num_cellsPerPatch = max_numCellsPerPatch;
+		cellsPerPatch_dim++;
 
 		num_patchCells_x = num_cells_x/num_cellsPerPatch;
 		num_patchCells_y = num_cells_y/num_cellsPerPatch;
@@ -179,7 +170,7 @@ public:
 
 		// Convert frustum into  6 planes
 		XMFLOAT4 worldPlanes[6];
-		Util::extractFrustumPlanes(worldPlanes, viewProj);
+		Util::extractFrustumPlanes(worldPlanes, cam->ViewProjDebug());
 
 		// Set per frame constants.
 		FXStandard* fx = sm->effects.fx_standard;
@@ -188,7 +179,7 @@ public:
 	
 		fx->SetMinTessDistance(20.0f);
 		fx->SetMaxTessDistance(500.0f);
-		fx->SetMinTessFactor(0.0f);
+		fx->SetMinTessFactor(tess_min);
 		fx->SetMaxTessFactor(cellsPerPatch_dim);
 
 		fx->SetTexelCellSpaceU(1.0f / num_vertex_x);
@@ -230,11 +221,6 @@ public:
 		int col = (int)floorf(c);
 
 		// Grab the heights of the cell we are in.
-		// A*--*B
-		//  | /|
-		//  |/ |
-		// C*--*D
-
 		float A = heightmap.safe_get(col, row);
 		float B = heightmap.safe_get(col+1, row);
 		float C = heightmap.safe_get(col, row+1);
@@ -260,7 +246,8 @@ public:
 	}
 
 	void recreate()
-	{                         
+	{
+		init(device, context, info);
 	}
 
 	void buildMenu(TwBar* menu);

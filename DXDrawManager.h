@@ -3,7 +3,7 @@
 
 #include <d3dx11.h>
 
-#include "GeometryGenerator.h"
+#include "GeometryFactory.h"
 #include "Terrain.h"
 #include "LightHelper.h"
 #include "Game.h"
@@ -31,6 +31,8 @@ private:
 	PointLight mPointLight;
 	SpotLight mSpotLight;
 
+	bool useNormalMap;
+
 	vector<Material> materials;
 
 	ID3D11ShaderResourceView* mGrassMapSRV;
@@ -39,6 +41,11 @@ private:
 
 	ID3D11Buffer* mShapesVB;
 	ID3D11Buffer* mShapesIB;
+
+	ID3D11Buffer* vbuff_mesh;
+	ID3D11Buffer* ibuff_mesh;
+	UINT num_index_mesh;
+
 	vector<int> vertexOffsets;
 	vector<UINT> indexOffsets;
 	vector<UINT> indexCounts;
@@ -67,12 +74,15 @@ public:
 		this->dxDevice = dxDevice;
 		this->dxDeviceContext = dxDeviceContext;
 		shaderManager = ShaderManager::getInstance();
+		useNormalMap = false;
 
 		// Init geometry
 		mShapesVB = 0;
 		mShapesIB = 0;
 		mScreenQuadVB = 0;
 		mScreenQuadIB = 0;
+		vbuff_mesh = 0;
+		ibuff_mesh = 0;
 
 		mDynamicCubeMapDSV = 0;
 		mDynamicCubeMapSRV = 0;
@@ -87,15 +97,16 @@ public:
 		mDirLight.Diffuse  = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
 		mDirLight.Specular = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
 		mDirLight.Direction = XMFLOAT3(0.57735f, -0.57735f, 0.57735f);
-		// Point light--position is changed every frame to animate in UpdateScene function.
+		
+		// Point light
 		mPointLight.Ambient  = XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
 		mPointLight.Diffuse  = XMFLOAT4(0.7f, 0.7f, 0.7f, 1.0f);
 		mPointLight.Specular = XMFLOAT4(0.7f, 0.7f, 0.7f, 1.0f);
 		mPointLight.Att      = XMFLOAT3(0.0f, 0.1f, 0.0f);
 		mPointLight.Position = XMFLOAT3(0.0f, 3.0f, 3.0f);
-		mPointLight.Range    = 250.0f;
+		mPointLight.Range    = 850.0f;
 
-		// Spot light--position and direction changed every frame to animate in UpdateScene function.
+		// Spot light
 		mSpotLight.Ambient  = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
 		mSpotLight.Diffuse  = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
 		mSpotLight.Specular = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
@@ -175,6 +186,8 @@ public:
 		ReleaseCOM(mShapesIB);
 		ReleaseCOM(mScreenQuadVB);
 		ReleaseCOM(mScreenQuadIB);
+		ReleaseCOM(vbuff_mesh);
+		ReleaseCOM(ibuff_mesh);
 
 		ReleaseCOM(mDynamicCubeMapDSV);
 		ReleaseCOM(mDynamicCubeMapSRV);
@@ -201,8 +214,61 @@ public:
 
 		return n;
 	}
+	void buildMeshGeometry()
+	{
+		GeometryFactory geoGen;
+
+		//
+		// Create mesh from OBJ-format
+		//
+
+		GeometryFactory::MeshData mesh_obj;
+		geoGen.readObjFile(&mesh_obj);
+
+		vector<Vertex::posNormTexTan> vertices(mesh_obj.Vertices.size());
+		for(int i=0; i<(int)mesh_obj.Vertices.size(); i++)
+		{
+			vertices[i].Pos    = mesh_obj.Vertices[i].Position;
+			vertices[i].Normal = mesh_obj.Vertices[i].Normal;
+			vertices[i].Tex	   = mesh_obj.Vertices[i].TexC;
+			vertices[i].TangentU = mesh_obj.Vertices[i].TangentU;
+		}
+
+		std::vector<UINT> indices(mesh_obj.Indices.size());
+		for(int i=0; i<(int)mesh_obj.Indices.size(); i++)
+		{
+			indices[i] = mesh_obj.Indices[i];
+		}
+		num_index_mesh = indices.size();
+
+		//
+		// Create buffers
+		//
+
+		D3D11_BUFFER_DESC desc_buff;
+		desc_buff.Usage = D3D11_USAGE_IMMUTABLE;
+		desc_buff.ByteWidth = sizeof(Vertex::posNormTexTan)*vertices.size();
+		desc_buff.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		desc_buff.CPUAccessFlags = 0;
+		desc_buff.MiscFlags = 0;
+		D3D11_SUBRESOURCE_DATA vinitData;
+		vinitData.pSysMem = &vertices[0];
+		HR(dxDevice->CreateBuffer(&desc_buff, &vinitData, &vbuff_mesh));
+
+		D3D11_BUFFER_DESC ibd;
+		ibd.Usage = D3D11_USAGE_IMMUTABLE;
+		ibd.ByteWidth = sizeof(UINT) * indices.size();
+		ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+		ibd.CPUAccessFlags = 0;
+		ibd.MiscFlags = 0;
+		D3D11_SUBRESOURCE_DATA iinitData;
+		iinitData.pSysMem = &indices[0];
+		HR(dxDevice->CreateBuffer(&ibd, &iinitData, &ibuff_mesh));
+	}
 	void buildGeometry()
 	{
+		buildMeshGeometry();
+
 		HR(D3DX11CreateShaderResourceViewFromFile(dxDevice, 
 			L"Textures/grass.dds", 0, 0, &mGrassMapSRV, 0 ));
 
@@ -212,11 +278,12 @@ public:
 		HR(D3DX11CreateShaderResourceViewFromFile(dxDevice, 
 			L"Textures/stones_nmap.dds", 0, 0, &mStoneNormalTexSRV, 0 ));
 
-		GeometryGenerator::MeshData box;
-		GeometryGenerator::MeshData grid;
-		GeometryGenerator::MeshData sphere;
+		GeometryFactory::MeshData box;
+		GeometryFactory::MeshData grid;
+		GeometryFactory::MeshData sphere;
 
-		GeometryGenerator geoGen;
+		GeometryFactory geoGen;
+
 		geoGen.CreateBox(1.0f, 1.0f, 1.0f, box);
 		geoGen.CreateSphere(0.5f, 20, 20, sphere);
 		geoGen.CreateGrid(160.0f, 160.0f, 50, 50, grid);
@@ -242,13 +309,9 @@ public:
 		for each(int i in indexCounts)
 			totalIndexCount += i;
 
-		//
-		// Extract the vertex elements we are interested and apply the height function to
-		// each vertex.  
-		//
 		std::vector<Vertex::posNormTexTan> vertices(totalVertexCount);
 		UINT k = 0;
-		for(size_t i = 0; i < box.Vertices.size(); ++i, ++k)
+		for(size_t i=0; i<box.Vertices.size(); i++, k++)
 		{
 			vertices[k].Pos    = box.Vertices[i].Position;
 			vertices[k].Normal = box.Vertices[i].Normal;
@@ -256,7 +319,7 @@ public:
 			vertices[k].TangentU = box.Vertices[i].TangentU;
 		}
 
-		for(size_t i = 0; i < grid.Vertices.size(); ++i, ++k)
+		for(size_t i=0; i<grid.Vertices.size(); i++, k++)
 		{
 			XMFLOAT3 p = grid.Vertices[i].Position;
 			p.y = getHillHeight(p.x, p.z);
@@ -266,7 +329,7 @@ public:
 			vertices[k].TangentU = grid.Vertices[i].TangentU;
 		}
 
-		for(size_t i = 0; i < sphere.Vertices.size(); ++i, ++k)
+		for(size_t i=0; i<sphere.Vertices.size(); i++, k++)
 		{
 			vertices[k].Pos    = sphere.Vertices[i].Position;
 			vertices[k].Normal = sphere.Vertices[i].Normal;
@@ -284,9 +347,8 @@ public:
 		vinitData.pSysMem = &vertices[0];
 		HR(dxDevice->CreateBuffer(&vbd, &vinitData, &mShapesVB));
 
-
 		//
-		// Pack the indices of all the meshes into one index buffer.
+		// Pack all indices into one index buffer
 		//
 
 		std::vector<UINT> indices;
@@ -306,9 +368,9 @@ public:
 	};
 	void buildScreenQuadGeometry()
 	{
-		GeometryGenerator::MeshData quad;
+		GeometryFactory::MeshData quad;
 
-		GeometryGenerator geoGen;
+		GeometryFactory geoGen;
 		geoGen.CreateFullscreenQuad(quad);
 
 		//
@@ -392,6 +454,7 @@ public:
 		fx->SetDirLights(&mDirLight);
 		fx->SetPointLights(&mPointLight);
 		fx->SetSpotLights(&mSpotLight);
+		fx->SetNormalMap(mStoneNormalTexSRV);
 
 		UINT stride = sizeof(Vertex::posNormTexTan);
 		UINT offset = 0;
@@ -411,6 +474,26 @@ public:
 		UINT offset = 0;
 		dxDeviceContext->IASetVertexBuffers(0, 1, &mShapesVB, &stride, &offset);
 		dxDeviceContext->IASetIndexBuffer(mShapesIB, DXGI_FORMAT_R32_UINT, 0);
+	}
+	void drawMesh_shadowMap(int id_material,  CXMMATRIX viewProj, UINT passNr)
+	{
+		UINT stride = sizeof(Vertex::posNormTexTan);
+		UINT offset = 0;
+		dxDeviceContext->IASetVertexBuffers(0, 1, &vbuff_mesh, &stride, &offset);
+
+		XMMATRIX world = XMMatrixTranslation(0.0f, 30.0f, 0.0f);
+		XMMATRIX worldViewProj = world*viewProj;
+
+		FXBuildShadowMap* fx = shaderManager->effects.fx_buildShadowMap;
+		fx->SetWorld(world);
+		fx->SetWorldInvTranspose(Util::InverseTranspose(world));
+		fx->SetWorldViewProj(worldViewProj);
+		fx->SetTexTransform(XMLoadFloat4x4(&mGrassTexTransform));
+		fx->SetDiffuseMap(mWavesMapSRV);
+
+		dxDeviceContext->RSSetState(shaderManager->states.NoCullRS);
+		fx->TessBuildShadowMapTech->GetPassByIndex(passNr)->Apply(0, dxDeviceContext);
+		dxDeviceContext->Draw(num_index_mesh, 0);
 	}
 	void drawObject_shadowMap(int id_object, int id_material, CXMMATRIX world, CXMMATRIX viewProj, UINT passNr)
 	{
@@ -435,18 +518,64 @@ public:
 		fx->SetWorld(world);
 		fx->SetViewProj(viewProj);
 		fx->SetWorldViewProj(worldViewProj);
-
-		// Note: No world pre-multiply for displacement mapping since the DS computes the world
-		// space position, we just need the light view/proj.
 		fx->SetShadowTransform(XMLoadFloat4x4(&mShadowTransform));
 		fx->SetTexTransform(XMLoadFloat4x4(&mGrassTexTransform));
 		fx->SetMaterial(materials[id_material]);
 		fx->SetDiffuseMap(mWavesMapSRV);
-		fx->SetNormalMap(mStoneNormalTexSRV);
+		fx->SetUseNormalMap(true);
 		
 		
 		fx->tech_tess->GetPassByIndex(passNr)->Apply(0, dxDeviceContext);
 		dxDeviceContext->DrawIndexed(indexCounts[id_object], indexOffsets[id_object], vertexOffsets[id_object]);
+	}
+	void drawMesh(int id_material, CXMMATRIX viewProj, UINT passNr)
+	{
+		UINT stride = sizeof(Vertex::posNormTexTan);
+		UINT offset = 0;
+		dxDeviceContext->IASetInputLayout(shaderManager->layout_posNormTexTan);
+		dxDeviceContext->IASetVertexBuffers(0, 1, &vbuff_mesh, &stride, &offset);
+		dxDeviceContext->IASetIndexBuffer(mShapesIB, DXGI_FORMAT_R32_UINT, 0);
+
+		XMMATRIX world = XMMatrixTranslation(0.0f, 30.0f, 0.0f);
+		XMMATRIX worldViewProj = world*viewProj;
+
+		fx->SetWorld(world);
+		fx->SetViewProj(viewProj);
+		fx->SetWorldViewProj(worldViewProj);
+		fx->SetShadowTransform(XMLoadFloat4x4(&mShadowTransform));
+		fx->SetTexTransform(XMLoadFloat4x4(&mGrassTexTransform));
+		fx->SetMaterial(materials[id_material]);
+		fx->SetDiffuseMap(mWavesMapSRV);
+		fx->SetUseNormalMap(useNormalMap);
+
+		fx->tech_tess->GetPassByIndex(passNr)->Apply(0, dxDeviceContext);
+		dxDeviceContext->Draw(num_index_mesh, 0);
+	}
+	void prepareFrameInstanced(UINT* stride, ID3D11Buffer* instancedBuffer)
+	{
+		ID3D11Buffer* vbs[2] = {mShapesVB, instancedBuffer};
+		UINT offset[2] = {0,0};
+
+		dxDeviceContext->IASetVertexBuffers(0, 2, vbs, stride, offset);
+		dxDeviceContext->IASetIndexBuffer(mShapesIB, DXGI_FORMAT_R32_UINT, 0);
+	}
+
+	void drawObjectInstanced(int id_object, int id_material, int num_instances, CXMMATRIX viewProj, UINT passNr)
+	{
+		fx->SetViewProj(viewProj);
+		fx->SetShadowTransform(XMLoadFloat4x4(&mShadowTransform));
+		fx->SetTexTransform(XMLoadFloat4x4(&mGrassTexTransform));
+		fx->SetMaterial(materials[id_material]);
+		fx->SetDiffuseMap(mWavesMapSRV);
+
+		fx->tech_tess_inst->GetPassByIndex(passNr)->Apply(0, dxDeviceContext);
+
+		dxDeviceContext->DrawIndexedInstanced(
+			indexCounts[id_object],
+			num_instances,
+			indexOffsets[id_object], 
+			vertexOffsets[id_object],
+			0);
 	}
 
 	void buildMenu(TwBar* menu)
@@ -474,6 +603,8 @@ public:
 		TwAddVarRW(menu, "SpotDirection", TW_TYPE_DIR3F, &mSpotLight.Direction, "group='Spotlight'");
 		TwDefine("Settings/'Spotlight' group=Lights");
 		TwDefine("Settings/Lights opened=false");
+
+		TwAddVarRW(menu, "Use normal mapp", TW_TYPE_BOOLCPP, &useNormalMap, "group=Render");
 	};
 };
 

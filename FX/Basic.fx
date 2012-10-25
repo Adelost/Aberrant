@@ -42,7 +42,8 @@ cbuffer cbPerObject
 	float4x4 gViewProj;
 	float4x4 gWorldViewProj;
 	float4x4 gTexTransform;
-	float4x4 gShadowTransform; 
+	float4x4 gShadowTransform;
+	bool gUseNormalMap; 
 	Material gMaterial;
 };
 
@@ -104,6 +105,7 @@ struct VertexOut
 	float4 ShadowPosH : TEXCOORD1;
 };
 
+// Normal
 VertexOut VS(VertexIn vin)
 {
 	VertexOut vout;
@@ -114,7 +116,7 @@ VertexOut VS(VertexIn vin)
 	vout.TangentW = mul(vin.TangentL, (float3x3)gWorld);
 		
 	// Transform to homogeneous clip space.
-	vout.PosH = mul(float4(vin.PosL, 1.0f), gWorldViewProj);
+	vout.PosH = mul(float4(vout.PosW, 1.0f), gViewProj);
 
 	// Output vertex attributes for interpolation across triangle.
 	vout.Tex = mul(float4(vin.Tex, 0.0f, 1.0f), gTexTransform).xy;
@@ -153,13 +155,48 @@ tess_VertexOut tess_VS(VertexIn vin)
 	// Tessellation factor
 	float d = distance(vout.PosW, gEyePosW);
 
-	// Normalized tessellation factor. 
-	// The tessellation is 
-	//   0 if d >= gMinTessDistance and
-	//   1 if d <= gMaxTessDistance.  
+	// Normalized tessellation factor
 	float tess = saturate( (gMinTessDistance - d) / (gMinTessDistance - gMaxTessDistance) );
 	
-	// Rescale [0,1] --> [gMinTessFactor, gMaxTessFactor].
+	// Rescale
+	vout.TessFactor = gMinTessFactor + tess*(gMaxTessFactor-gMinTessFactor);
+
+	return vout;
+}
+
+struct inst_VertexIn
+{
+	float3 PosL    : POSITION;
+	float3 NormalL : NORMAL;
+	float2 Tex     : TEXCOORD;
+	float3 TangentL : TANGENT;
+	column_major float4x4 World  : WORLD;
+	uint InstanceId : SV_InstanceID;
+};
+
+//
+// Instancing -- with tessellation
+//
+
+tess_VertexOut inst_VS(inst_VertexIn vin)
+{
+	tess_VertexOut vout;
+	
+	// Transform to world space space.
+	vout.PosW    = mul(float4(vin.PosL, 1.0f), vin.World).xyz;
+	vout.NormalW = mul(vin.NormalL, (float3x3)vin.World);
+	vout.TangentW = mul(vin.TangentL, (float3x3)vin.World);
+		
+	// Output vertex attributes for interpolation across triangle.
+	vout.Tex = mul(float4(vin.Tex, 0.0f, 1.0f), gTexTransform).xy;
+	
+	// Tessellation factor
+	float d = distance(vout.PosW, gEyePosW);
+
+	// Normalized tessellation factor. 
+	float tess = saturate( (gMinTessDistance - d) / (gMinTessDistance - gMaxTessDistance) );
+	
+	// Rescale
 	vout.TessFactor = gMinTessFactor + tess*(gMaxTessFactor-gMinTessFactor);
 
 	return vout;
@@ -175,12 +212,6 @@ PatchTess PatchHS(InputPatch<tess_VertexOut,3> patch,
                   uint patchID : SV_PrimitiveID)
 {
 	PatchTess pt;
-	
-	// Average tess factors along edges, and pick an edge tess factor for 
-	// the interior tessellation.  It is important to do the tess factor
-	// calculation based on the edge properties so that edges shared by 
-	// more than one triangle will have the same tessellation factor.  
-	// Otherwise, gaps can appear.
 	pt.EdgeTess[0] = 0.5f*(patch[1].TessFactor + patch[2].TessFactor);
 	pt.EdgeTess[1] = 0.5f*(patch[2].TessFactor + patch[0].TessFactor);
 	pt.EdgeTess[2] = 0.5f*(patch[0].TessFactor + patch[1].TessFactor);
@@ -270,6 +301,11 @@ DomainOut DS(PatchTess patchTess,
 	
 	return dout;
 }
+
+//=========================
+// Mesh Tessellation
+//
+
 float4 tess_PS(DomainOut pin) : SV_Target
 {
 	// Interpolating normal can unnormalize it, so normalize it.
@@ -295,8 +331,10 @@ float4 tess_PS(DomainOut pin) : SV_Target
 	//
 
 	float3 normalMapSample = gNormalMap.Sample(samLinear, pin.Tex).rgb;
-	float3 bumpedNormalW = NormalSampleToWorldSpace(normalMapSample, pin.NormalW, pin.TangentW);
-
+	//normalMapSample = float3(0.0f,1.0f,0.0f);
+	float3 bumpedNormalW = pin.NormalW;
+	if(gUseNormalMap)
+		bumpedNormalW = NormalSampleToWorldSpace(normalMapSample, pin.NormalW, pin.TangentW);
 	//
 	// Lighting.
 	//
@@ -341,7 +379,9 @@ float4 tess_PS(DomainOut pin) : SV_Target
 	float4 reflectionColor  = gCubeMap.Sample(samAnisotropic, reflectionVector);
 
 	litColor += 0.0f*reflectionColor;
-
+	
+	// Show normal map
+	//litColor = float4(bumpedNormalW, 1.0f);
     return litColor;
 }
 
@@ -450,8 +490,28 @@ technique11 Tess1
     }
 }
 
-
+//==============================================================
+// Instancing
 //
+
+technique11 inst_Tess1
+{
+    pass P0
+    {
+		SetVertexShader( CompileShader( vs_5_0, inst_VS() ) );
+        SetHullShader( CompileShader( hs_5_0, HS() ) );
+        SetDomainShader( CompileShader( ds_5_0, DS() ) );
+		SetGeometryShader( NULL );
+        SetPixelShader( CompileShader( ps_5_0, tess_PS() ) );
+    }
+}
+
+
+
+
+
+
+//====================================================
 // Terrain
 //
 
@@ -486,39 +546,36 @@ terr_VertexOut terr_VS(terr_VertexIn vin)
 }
 float terr_CalcTessFactor(float3 p)
 {
-	float d = distance(p, gEyePosW);
+	// Option 1 -- Real distance
+	//float dist = distance(p, gEyePosW);
+	// Option 2 -- Exclude height, makes it easier to see from above
+	float dist = max(abs(p.x-gEyePosW.x), abs(p.z-gEyePosW.z));
+	
+	float distanceFactor = saturate((dist - gMinTessDistance)/(gMaxTessDistance - gMinTessDistance));
 
-	// max norm in xz plane (useful to see detail levels from a bird's eye).
-	//float d = max( abs(p.x-gEyePosW.x), abs(p.z-gEyePosW.z) );
-	
-	float s = saturate( (d - gMinTessDistance) / (gMaxTessDistance - gMinTessDistance) );
-	
-	return pow(2, (lerp(gMaxTessFactor, gMinTessFactor, s)) );
+	// Exp falloff
+	return pow(2, (lerp(gMaxTessFactor, gMinTessFactor, distanceFactor)));
+	// Linear falloff
+	//return lerp(gMaxTessFactor, gMinTessFactor, distanceFactor);
 }
 bool AabbBehindPlaneTest(float3 center, float3 extents, float4 plane)
 {
 	float3 n = abs(plane.xyz);
-	
-	// This is always positive.
 	float r = dot(extents, n);
-	
-	// signed distance from center point to plane.
 	float s = dot( float4(center, 1.0f), plane );
 	
-	// If the center point of the box is a distance of e or more behind the
-	// plane (in which case s is negative since it is behind the plane),
-	// then the box is completely in the negative half space of the plane.
+	// If center of box is distance e or more behind the box is completely in the negative half space of the plane
 	return (s + r) < 0.0f;
 }
-// Returns true if the box is completely outside the frustum.
 bool AabbOutsideFrustumTest(float3 center, float3 extents, float4 frustumPlanes[6])
 {
 	for(int i = 0; i < 6; ++i)
 	{
-		// If the box is completely behind any of the frustum planes
+		// If box is completely behind any frustum planes
 		// then it is outside the frustum.
 		if( AabbBehindPlaneTest(center, extents, frustumPlanes[i]) )
 		{
+			// Box is outside of furstum
 			return true;
 		}
 	}
@@ -561,15 +618,12 @@ terr_PatchTess terr_ConstantHS(InputPatch<terr_VertexOut, 4> patch, uint patchID
 		
 		return pt;
 	}
+
 	//
 	// Do normal tessellation based on distance.
 	//
 	else 
 	{
-		// It is important to do the tess factor calculation based on the
-		// edge properties so that edges shared by more than one patch will
-		// have the same tessellation factor.  Otherwise, gaps can appear.
-		
 		// Compute midpoint on edges, and patch center
 		float3 e0 = 0.5f*(patch[0].PosW + patch[2].PosW);
 		float3 e1 = 0.5f*(patch[0].PosW + patch[1].PosW);
@@ -596,7 +650,7 @@ struct terr_HullOut
 };
 
 [domain("quad")]
-[partitioning("fractional_even")]
+[partitioning("fractional_odd")]
 [outputtopology("triangle_cw")]
 [outputcontrolpoints(4)]
 [patchconstantfunc("terr_ConstantHS")]
@@ -645,13 +699,14 @@ terr_DomainOut terr_DS(terr_PatchTess patchTess,
 	// Tile layer textures over terrain.
 	dout.TiledTex = dout.Tex*gTexScale; 
 	
+	// Displace road
+	float roadHeight = gNormalMap.SampleLevel(samLinear, 1.0*dout.TiledTex, 0).a;
+	roadHeight = -(1.0f-roadHeight)*2.0f+2.0f;
+	float roadBlend  = gBlendMap.SampleLevel( samLinear, dout.Tex, 0).b; 
+
 	// Displacement mapping
-	dout.PosW.y = gHeightMap.SampleLevel( samHeightmap, dout.Tex, 0 ).r;
-	
-	// NOTE: We tried computing the normal in the shader using finite difference, 
-	// but the vertices move continuously with fractional_even which creates
-	// noticable light shimmering artifacts as the normal changes.  Therefore,
-	// we moved the calculation to the pixel shader.  
+	dout.PosW.y = gHeightMap.SampleLevel( samHeightmap, dout.Tex, 0 ).r + roadHeight*roadBlend;
+	// Sample height map (stored in alpha channel).
 	
 	// Project to homogeneous clip space.
 	dout.PosH    = mul(float4(dout.PosW, 1.0f), gViewProj);
@@ -763,6 +818,8 @@ float4 terr_PS(terr_DomainOut pin) : SV_Target
 
 	litColor += 0.0f*reflectionColor;
 
+	// Show normals
+	//litColor = float4(bumpedNormalW, 1.0f);
     return litColor;
 }
 
@@ -778,7 +835,5 @@ technique11 Terrain1
         SetPixelShader( CompileShader( ps_5_0, terr_PS() ) );
     }
 }
-
-
 
 

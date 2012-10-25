@@ -24,7 +24,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DXRenderer.cpp" />
-    <ClCompile Include="GameTimer.cpp" />
     <ClCompile Include="GeneratedFiles\Debug\moc_DXWidget.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
     </ClCompile>
@@ -43,8 +42,10 @@
     <ClCompile Include="GeneratedFiles\Release\moc_MainWindow.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="GeometryFactory.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Sky.cpp" />
+    <ClCompile Include="Sound.cpp" />
     <ClCompile Include="Terrain.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -78,7 +79,7 @@
     <ClInclude Include="Game.h" />
     <ClInclude Include="GameEntity.h" />
     <ClInclude Include="GameTimer.h" />
-    <ClInclude Include="GeometryGenerator.h" />
+    <ClInclude Include="GeometryFactory.h" />
     <ClInclude Include="DXRenderer.h" />
     <ClInclude Include="Cube.h" />
     <ClInclude Include="GeneratedFiles\ui_mainwindow.h" />
@@ -86,12 +87,14 @@
     <ClInclude Include="RenderStates.h" />
     <ClInclude Include="ShadowMap.h" />
     <ClInclude Include="Sky.h" />
+    <ClInclude Include="Sound.h" />
     <ClInclude Include="Util.h" />
     <ClInclude Include="LightHelper.h" />
     <ClInclude Include="Maze.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Terrain.h" />
     <ClInclude Include="ShaderManager.h" />
+    <ClInclude Include="Wave.h" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="root\Forms\mainwindow.ui">
@@ -209,7 +212,7 @@
       <OutputFile>$(OutDir)\$(ProjectName).exe</OutputFile>
       <AdditionalLibraryDirectories>$(QTDIR)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3dx10.lib;d3d11.lib;d3dx11d.lib;D3DCompiler.lib;dxerr.lib;dxgi.lib;dxguid.lib;Effects11d.lib;qtmaind.lib;QtCored4.lib;QtGuid4.lib;QtOpenGLd4.lib;opengl32.lib;glu32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d10.lib;d3dx10.lib;d3d11.lib;d3dx11d.lib;D3DCompiler.lib;dxerr.lib;dxgi.lib;dxguid.lib;Effects11d.lib;qtmaind.lib;QtCored4.lib;QtGuid4.lib;QtOpenGLd4.lib;opengl32.lib;glu32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

@@ -18,7 +18,7 @@ class GLWidget : public QGLWidget, public Renderer
     Q_OBJECT
 private:
 	float zoomLevel;
-	
+	bool hasMouseLock;
 
     QGLShaderProgram shader;
     QGLBuffer *vertexBuffer;
@@ -76,6 +76,9 @@ public:
 		vertexBuffer = new QGLBuffer(QGLBuffer::VertexBuffer);
 		normalBuffer = new QGLBuffer(QGLBuffer::VertexBuffer);
 		indexBuffer = new QGLBuffer(QGLBuffer::IndexBuffer);
+
+		setMouseTracking(true);
+		hasMouseLock = false;
     };
 	~GLWidget()
 	{
@@ -201,7 +204,54 @@ protected:
 		//Draw stuff
 		glDrawElements(GL_TRIANGLES, Cube::indexCount(), GL_UNSIGNED_INT, 0);
 	};
+	void mousePressEvent(QMouseEvent *e)
+	{
+		// Lock/release mouse to app
+		if(e->button() == Qt::LeftButton)
+			toggleMouseLock();
+	};
+	void mouseMoveEvent(QMouseEvent *e)
+	{
+		//Rotate based on mouse movement
+		if(hasMouseLock)
+		{
+			//Calculate change (delta) in mouse pos
+			QPoint mouseAnchor = QWidget::mapToGlobal(QPoint(this->width()*0.5f,this->height()*0.5f));
+			QCursor::setPos(mouseAnchor.x(), mouseAnchor.y()); // anchor mouse again
+			int dx = e->globalX() - mouseAnchor.x();
+			int dy = e->globalY() - mouseAnchor.y();
 
+
+			//Send event
+			emit slot_mouseMove(dx, dy);
+		}
+		else {
+			//Tweakbar
+			TwMouseMotion(e->x(), e->y());
+		}
+	};
+private:
+	void toggleMouseLock()
+	{
+		// Locking/release mouse cursor to widget
+		hasMouseLock = !hasMouseLock;
+		if(hasMouseLock)
+		{
+			//Hide cursor and set new anchor point
+			QWidget::setCursor(Qt::BlankCursor);
+			QWidget::grabMouse();
+
+			//Move mouse to middle
+			QPoint mouseAnchor = QWidget::mapToGlobal(QPoint(this->width()*0.5f,this->height()*0.5f));
+			QCursor::setPos(mouseAnchor.x(), mouseAnchor.y()); // anchor mouse again
+		}
+		else
+		{
+			//Show cursor again and release mouse cursor
+			QWidget::setCursor(Qt::ArrowCursor);	
+			QWidget::releaseMouse();
+		}
+	};
 public slots:
 	void slot_mouseMove(int dx, int dy)
 	{

@@ -91,6 +91,7 @@ public:
 	ID3DX11EffectTechnique* tech_light1;
 	ID3DX11EffectTechnique* tech_tess;
 	ID3DX11EffectTechnique* tech_terrain;
+	ID3DX11EffectTechnique* tech_tess_inst;
 
 	// Per object
 	ID3DX11EffectMatrixVariable* world;
@@ -134,6 +135,7 @@ public:
 	ID3DX11EffectShaderResourceVariable* normalMap;
 	void SetNormalMap(ID3D11ShaderResourceView* tex)      { normalMap->SetResource(tex); }
 
+
 	// Tessellation
 	ID3DX11EffectScalarVariable* heightScale;
 	void SetHeightScale(float f)                        { heightScale->SetFloat(f); }
@@ -145,6 +147,8 @@ public:
 	void SetMinTessFactor(float f)                      { minTessFactor->SetFloat(f); }
 	ID3DX11EffectScalarVariable* maxTessFactor;
 	void SetMaxTessFactor(float f)                      { maxTessFactor->SetFloat(f); }
+	ID3DX11EffectScalarVariable* useNormalMap;
+	void SetUseNormalMap(bool f)                      { useNormalMap->SetBool(f); }
 
 	// Terrain
 	ID3DX11EffectScalarVariable* texelCellSpaceU;
@@ -169,6 +173,7 @@ public:
 		tech_light1    = fx->GetTechniqueByName("Light1");
 		tech_tess    = fx->GetTechniqueByName("Tess1");
 		tech_terrain    = fx->GetTechniqueByName("Terrain1");
+		tech_tess_inst    = fx->GetTechniqueByName("inst_Tess1");
 
 		// Per object
 		viewProj = fx->GetVariableByName("gViewProj")->AsMatrix();
@@ -197,6 +202,7 @@ public:
 		minTessDistance   = fx->GetVariableByName("gMinTessDistance")->AsScalar();
 		minTessFactor     = fx->GetVariableByName("gMinTessFactor")->AsScalar();
 		maxTessFactor     = fx->GetVariableByName("gMaxTessFactor")->AsScalar();
+		useNormalMap	= fx->GetVariableByName("gUseNormalMap")->AsScalar();
 
 		// Terrain
 		texelCellSpaceU    = fx->GetVariableByName("gTexelCellSpaceU")->AsScalar();

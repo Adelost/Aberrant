@@ -21,6 +21,7 @@ private:
 	GameTimer timer;
 	DXRenderer *renderer;
 	bool hasMouseLock;
+	bool* doMSAA;
 
 public:
 	DXWidget(QWidget* parent = 0, Qt::WFlags flags = 0) : QWidget(parent, flags)
@@ -29,10 +30,14 @@ public:
 		setAttribute(Qt::WA_OpaquePaintEvent);
 		setAttribute(Qt::WA_PaintOnScreen);
 
+		doMSAA = new bool(false);
+
 		//Init self
 		setMouseTracking(true);
 		hasMouseLock = false;
 		init();
+
+		
 	};
 	~DXWidget()
 	{
@@ -42,7 +47,7 @@ public:
 	{
 		// Create renderer
 		renderer = new DXRenderer();
-		renderer->init(this->winId());
+		renderer->init(this->winId(), doMSAA);
 
 		// Get input
 		connect(this, SIGNAL(signal_mouseMove(int, int)), this, SLOT(slot_mouseMove(int, int)));
@@ -185,8 +190,8 @@ public slots:
 	void slot_mouseMove(int dx, int dy)
 	{
 		// Set 1 pixel = 0.25 degrees
-		float x = XMConvertToRadians(0.25f*(float)dx);
-		float y = XMConvertToRadians(0.25f*(float)dy);
+		float x = XMConvertToRadians(0.20f*(float)dx);
+		float y = XMConvertToRadians(0.20f*(float)dy);
 
 		// Rotate camera
 		renderer->mCam.Pitch(y);
