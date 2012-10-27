@@ -12,8 +12,6 @@
 #include "Sky.h"
 #include "Sound.h"
 
-static bool msaa_enable = false;
-
 class DXRenderer
 {
 private:
@@ -33,7 +31,7 @@ private:
 	ShaderManager *shaderManager;
 
 	UINT msaa_quality;
-	
+	bool msaa_enable;
 	bool wireframe_enable;
 
 	Game pacman;
@@ -72,7 +70,7 @@ private:
 	// Sound 
 	// -- disclaimers, mem leak when creating sound buffers, 
 	// havn't got time to figure out why
-	Sound sound;
+	//Sound sound;
 public:
 	Camera mCam;
 
@@ -84,7 +82,7 @@ private:
 public:
 	DXRenderer();
 	~DXRenderer();
-	void init(HWND winId, bool* doMSAA);
+	void init(HWND winId);
 	void onResize(int width, int height);
 	void recompileShaders()
 	{

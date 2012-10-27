@@ -16,7 +16,7 @@ DXRenderer::DXRenderer()
 
 	// DX settings
 	msaa_quality = 0;
-	//msaa_enable = true;
+	msaa_enable = true;
 	wireframe_enable = false;
 	clientWidth = 800;
 	clientHeight = 600;
@@ -56,7 +56,7 @@ DXRenderer::~DXRenderer()
 	TwTerminate();
 }
 
-void DXRenderer::init(HWND winId, bool* doMSAA)
+void DXRenderer::init(HWND winId)
 {
 	// Init DX
 	this->winId = winId;
@@ -82,7 +82,7 @@ void DXRenderer::init(HWND winId, bool* doMSAA)
 	info.cellsPerPatch_dim = 6;
 
 	mTerrain.init(dxDevice, dxDeviceContext, info);
-	sound.init();
+	//sound.init();
 
 	mesh_maxTessFactor = 1.0f;
 	mesh_heightScale = 0.0f;
@@ -192,7 +192,7 @@ void DXRenderer::buildMenu()
 	TwAddSeparator(menu, NULL, NULL);
 	pacman.entity->buildMenu(menu);
 	pacman.maze->buildMenu(menu);
-	sound.buildMenu(menu);
+	//sound.buildMenu(menu);
 }
 
 void DXRenderer::initDX()
@@ -408,7 +408,7 @@ void DXRenderer::update(float dt)
 	//
 
 	// Sound
-	sound.update(dt);
+	//sound.update(dt);
 
 	//Update camera
 	if(lockCamera)

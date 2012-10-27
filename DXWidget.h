@@ -21,7 +21,6 @@ private:
 	GameTimer timer;
 	DXRenderer *renderer;
 	bool hasMouseLock;
-	bool* doMSAA;
 
 public:
 	DXWidget(QWidget* parent = 0, Qt::WFlags flags = 0) : QWidget(parent, flags)
@@ -29,8 +28,6 @@ public:
 		//Make widget non-transparant & draw directly onto screen
 		setAttribute(Qt::WA_OpaquePaintEvent);
 		setAttribute(Qt::WA_PaintOnScreen);
-
-		doMSAA = new bool(false);
 
 		//Init self
 		setMouseTracking(true);
@@ -47,7 +44,7 @@ public:
 	{
 		// Create renderer
 		renderer = new DXRenderer();
-		renderer->init(this->winId(), doMSAA);
+		renderer->init(this->winId());
 
 		// Get input
 		connect(this, SIGNAL(signal_mouseMove(int, int)), this, SLOT(slot_mouseMove(int, int)));

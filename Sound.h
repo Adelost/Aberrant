@@ -177,14 +177,14 @@ public:
 		return submix;
 	}
 
-	//void sterioPanning(D3DXVECTOR3 listner, D3DXVECTOR3 ){
-	//	IXAudio2SubmixVoice* submix;
-	//	submix = NULL;
-	//	XAUDIO2_VOICE_DETAILS sd = {0};
-	//	source->GetVoiceDetails(&sd);
-	//	HR(engine->CreateSubmixVoice(&submix, sd.InputChannels, sd.InputSampleRate));
-	//	return submix;
-	//}
+	/*void sterioPanning(D3DXVECTOR3 listner, D3DXVECTOR3 ){
+	IXAudio2SubmixVoice* submix;
+	submix = NULL;
+	XAUDIO2_VOICE_DETAILS sd = {0};
+	source->GetVoiceDetails(&sd);
+	HR(engine->CreateSubmixVoice(&submix, sd.InputChannels, sd.InputSampleRate));
+	return submix;
+	}*/
 
 	void update(float dt)
 	{
